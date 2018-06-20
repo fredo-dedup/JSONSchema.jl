@@ -1,6 +1,8 @@
 module JSONSchema
 
 using Compat
+using JSON
+
 include("schema_parsing.jl")
 
 fn = joinpath(@__DIR__, "enum.json")
@@ -30,7 +32,6 @@ check(schema[3]["tests"][1]["data"], spec)
 evaluate(schema[3]["tests"][1]["data"], spec)
 
 using Base.Test
-basename(fn)
 files = ["enum.json"]
 @testset "$a" for a in files
     fn = joinpath(@__DIR__, a)
