@@ -24,7 +24,7 @@ end)
 
 tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
 @testset "JSON schema test suite (draft 4)" begin
-    @testset "$tfn" for tfn in filter(n -> ismatch(r"\.json$",n), readdir(tsdir))
+    @testset "$tfn" for tfn in filter(n -> ismatch(r"\.json$",n), readdir(tsdir))[1:24]
         fn = joinpath(tsdir, tfn)
         schema = JSON.parsefile(fn)
         @testset "- $(subschema["description"])" for subschema in (schema)
@@ -39,7 +39,7 @@ end
 #  MAP
 fn = joinpath(tsdir, "ref.json")
 schema = JSON.parsefile(fn)
-subschema = schema[3]
+subschema = schema[6]
 spec = Schema(subschema["schema"])
 for subtest in subschema["tests"]
     info("- ", subtest["description"],
@@ -47,14 +47,15 @@ for subtest in subschema["tests"]
          " / ", subtest["valid"])
 end
 
-subtest = subschema["tests"][1]
+subtest = subschema["tests"][3]
 x = subtest["data"]
 s = spec
 check(x, s)
 subtest["valid"]
 
 s0 = spec
-s = spec.asserts["properties"]["bar"]
+s = spec.asserts["items"][2]
+
 asserts = copy(s.asserts)
 
 macroexpand( quote @doassert asserts "not" begin

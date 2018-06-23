@@ -2,6 +2,15 @@
 #  JSON schema definition and parsing
 ####################################################################
 
+macro doassert(asserts::Symbol, key::String, block::Expr)
+  quote
+    if haskey($(esc(asserts)), $key)
+      $(esc(:( keyval = ($asserts)[$key]) ))
+      $(esc(block))
+    end
+  end
+end
+
 function check(x, s::Schema, s0::Schema=s)
   evaluate(x,s,s0) == nothing
 end
@@ -25,34 +34,83 @@ function evaluatefortype(x, typ::String)
   nothing
 end
 
+
+# raw = "abcd%25np%25r%32op"
+function unescapeJPath(raw::String)
+  ret = replace(raw, "~0", "~")
+  ret = replace(ret, "~1", "/")
+
+  m = match(r"%([0-9A-F]{2})", ret)
+  if m != nothing
+    repls = Dict()
+    for c in m.captures
+      # c = first(m.captures)
+      haskey(repls, String("%$c")) && continue
+      repls[String("%$c")] = "$(Char(parse("0x" * c)))"
+    end
+
+    for (k,v) in repls
+      ret = replace(ret, k, v)
+    end
+  end
+
+  ret
+end
+
+function resolveref(rpath::String, s0)
+  if rpath == "#"
+    return s0
+  elseif rpath[1] == '#'
+    rs = s0.asserts
+    for prop in split(rpath[2:end], "/")
+      (prop == "") && continue
+      nprop = unescapeJPath(String(prop))
+      if rs isa Dict
+        haskey(rs, nprop) || return "missing schema ref $nprop in $rs"
+        rs = rs[nprop]
+      elseif rs isa Array
+        idx = parse(nprop) + 1
+        (length(rs) < idx) && return "item index $idx larger than array $rs"
+        rs = rs[idx]
+      end
+    end
+    return rs
+  end
+end
+
+
 function evaluate(x, s::Schema, s0::Schema=s)
   asserts = copy(s.asserts)
 
   # resolve refs and add to list of assertions
-  if haskey(s.asserts, "\$ref")
-    rpath = s.asserts["\$ref"]
-    if rpath == "#"
-      merge!(asserts, s0.asserts)
-    elseif rpath[1] == '#'
-      rs = s0.asserts
-      for prop in split(rpath[2:end], "/")
-        (prop == "") && continue
-        nprop = replace(prop,  "~0", "~")
-        nprop = replace(nprop, "~1", "/")
-        # caps = match(r"%[0-9A-F]{2}")
-        # nprop = replace("abcd%25nprop", r"%[0-9A-F]{2}", "xx")
-        if rs isa Dict
-          haskey(rs, nprop) || return "missing schema ref $nprop in $rs"
-          rs = rs[nprop]
-        elseif rs isa Array
-          idx = parse(nprop) + 1
-          (length(rs) < idx) || return "item index $idx larger than array $rs"
-          rs = rs[parse(nprop)+1]
-        end
-      end
-      merge!(asserts, rs.asserts)
-    end
+  while haskey(asserts, "\$ref")
+    rs = resolveref(s.asserts["\$ref"], s0)
+    delete!(asserts, "\$ref")
+    asserts = rs.asserts
+    # merge!(asserts, rs.asserts)
   end
+
+  # if haskey(s.asserts, "\$ref")
+    # if rpath == "#"
+    #   merge!(asserts, s0.asserts)
+    # elseif rpath[1] == '#'
+    #   rs = s0.asserts
+    #   # prop = split(rpath[2:end], "/")[3]
+    #   for prop in split(rpath[2:end], "/")
+    #     (prop == "") && continue
+    #     nprop = unescapeJPath(String(prop))
+    #     if rs isa Dict
+    #       haskey(rs, nprop) || return "missing schema ref $nprop in $rs"
+    #       rs = rs[nprop]
+    #     elseif rs isa Array
+    #       idx = parse(nprop) + 1
+    #       (length(rs) < idx) && return "item index $idx larger than array $rs"
+    #       rs = rs[idx]
+    #     end
+    #   end
+    #   merge!(asserts, rs.asserts)
+    # end
+  # end
 
   if haskey(asserts, "type")
     typ = asserts["type"]
