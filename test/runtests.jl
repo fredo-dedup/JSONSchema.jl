@@ -39,7 +39,7 @@ end
 #  MAP
 fn = joinpath(tsdir, "ref.json")
 schema = JSON.parsefile(fn)
-subschema = schema[6]
+subschema = schema[9]
 spec = Schema(subschema["schema"])
 for subtest in subschema["tests"]
     info("- ", subtest["description"],
@@ -47,9 +47,8 @@ for subtest in subschema["tests"]
          " / ", subtest["valid"])
 end
 
-subtest = subschema["tests"][3]
-x = subtest["data"]
-s = spec
+subtest = subschema["tests"][1]
+x, s = subtest["data"], spec
 check(x, s)
 subtest["valid"]
 

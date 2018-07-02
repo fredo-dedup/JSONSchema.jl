@@ -57,60 +57,60 @@ function unescapeJPath(raw::String)
   ret
 end
 
-function resolveref(rpath::String, s0)
-  if rpath == "#"
-    return s0
-  elseif rpath[1] == '#'
-    rs = s0.asserts
-    for prop in split(rpath[2:end], "/")
-      (prop == "") && continue
-      nprop = unescapeJPath(String(prop))
-      if rs isa Dict
-        haskey(rs, nprop) || return "missing schema ref $nprop in $rs"
-        rs = rs[nprop]
-      elseif rs isa Array
-        idx = parse(nprop) + 1
-        (length(rs) < idx) && return "item index $idx larger than array $rs"
-        rs = rs[idx]
-      end
-    end
-    return rs
+rpath = s.asserts["\$ref"]
+# function resolveref(rpath::String, s0)
+#   if rpath == "#"
+#     return s0
+#   elseif rpath[1] == '#'
+#     rs = s0.asserts
+#     prop = split(rpath[2:end], "/")[3]
+#     for prop in split(rpath[2:end], "/")
+#       (prop == "") && continue
+#       nprop = unescapeJPath(String(prop))
+#       if rs isa Dict
+#         haskey(rs, nprop) || return "missing schema ref $nprop in $rs"
+#         rs = rs[nprop]
+#       elseif rs isa Array
+#         idx = parse(nprop) + 1
+#         (length(rs) < idx) && return "item index $(idx-1) larger than array $rs"
+#         rs = rs[idx]
+#       end
+#     end
+#     return rs
+#   end
+# end
+
+pathels = split(rpath, "/")
+function resolveref(s, s0, pathels::Vector{T}) where T <: AbstractString
+  (length(pathels)==0) && return s
+  el = splice!(pathels, 1)
+  (el == "#") && return resolveref(s0, s0, pathels)  # start from root
+  nprop = unescapeJPath(String(el))
+  if s isa Schema
+    haskey(s.asserts, nprop) || error("missing schema ref $nprop in $s")
+    return resolveref(s.asserts[nprop], s0, pathels)
+  elseif s isa Dict
+      haskey(s, nprop) || error("missing schema ref $nprop in $s")
+      return resolveref(s[nprop], s0, pathels)
+  elseif s isa Array
+    idx = parse(nprop) + 1
+    (length(s) < idx) && error("item index $(idx-1) larger than array $s")
+    return resolveref(s[idx], s0, pathels)
+  else
+    error("unmanaged type in ref resolution $(typeof(s)) - $s")
   end
 end
-
 
 function evaluate(x, s::Schema, s0::Schema=s)
   asserts = copy(s.asserts)
 
   # resolve refs and add to list of assertions
-  while haskey(asserts, "\$ref")
-    rs = resolveref(s.asserts["\$ref"], s0)
+  while haskey(asserts, "\$ref") && (asserts["\$ref"] isa String)
+    rs = resolveref(s, s0, split(asserts["\$ref"], "/"))
     delete!(asserts, "\$ref")
-    asserts = rs.asserts
-    # merge!(asserts, rs.asserts)
+    (rs isa Schema) && (asserts = copy(rs.asserts))
+    # merge!(asserts, rs.asserts) # not merge
   end
-
-  # if haskey(s.asserts, "\$ref")
-    # if rpath == "#"
-    #   merge!(asserts, s0.asserts)
-    # elseif rpath[1] == '#'
-    #   rs = s0.asserts
-    #   # prop = split(rpath[2:end], "/")[3]
-    #   for prop in split(rpath[2:end], "/")
-    #     (prop == "") && continue
-    #     nprop = unescapeJPath(String(prop))
-    #     if rs isa Dict
-    #       haskey(rs, nprop) || return "missing schema ref $nprop in $rs"
-    #       rs = rs[nprop]
-    #     elseif rs isa Array
-    #       idx = parse(nprop) + 1
-    #       (length(rs) < idx) && return "item index $idx larger than array $rs"
-    #       rs = rs[idx]
-    #     end
-    #   end
-    #   merge!(asserts, rs.asserts)
-    # end
-  # end
 
   if haskey(asserts, "type")
     typ = asserts["type"]
