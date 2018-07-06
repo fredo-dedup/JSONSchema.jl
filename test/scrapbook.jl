@@ -38,7 +38,7 @@ tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
 end
 
 #  MAP
-fn = joinpath(tsdir, "definitions.json")
+fn = joinpath(tsdir, "oneOf.json")
 schema = JSON.parsefile(fn)
 subschema = schema[1]
 spec = Schema(subschema["schema"])
@@ -77,5 +77,43 @@ macroexpand( quote @doassert asserts "not" begin
 end end)
 
 
-s = spec.asserts["anyOf"][1]
-evaluate(x,s)
+
+#################################################################################
+
+
+sch = JSON.parsefile(joinpath(@__DIR__, "vega-lite-schema.json"))
+@time (sch2 = Schema(sch);nothing)
+
+Profile.clear()
+@profile (for i in 1:10 ; Schema(sch) ; end)
+Profile.print()
+
+
+jstest = JSON.parse("""
+    {
+      "\$schema": "https://vega.github.io/schema/vega-lite/v2.json",
+      "description": "A simple bar chart with embedded data.",
+      "data": {
+        "values": [
+          {"a": "A","b": 28}, {"a": "B","b": 55}, {"a": "C","b": 43},
+          {"a": "D","b": 91}, {"a": "E","b": 81}, {"a": "F","b": 53},
+          {"a": "G","b": 19}, {"a": "H","b": 87}, {"a": "I","b": 52}
+        ]
+      },
+      "mark": "bar",
+      "encodiing": {
+        "x": {"field": "a", "type": "ordinal"},
+        "y": {"field": "b", "type": "quantitative"}
+      }
+    }
+
+    """)
+
+@time evaluate(jstest, sch2);
+
+Profile.clear()
+@profile evaluate(jstest, sch2)
+
+Profile.print()
+
+5+6
