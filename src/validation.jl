@@ -11,6 +11,37 @@ macro doassert(asserts::Symbol, key::String, block::Expr)
   end
 end
 
+macro report(what, wher, msg)
+  quote
+    return SingleIssue($(esc(what)), $(esc(wher)), $(esc(msg)))
+  end
+end
+
+
+@macroexpand( :( @report x path "eeereuuurr" ))
+
+function tst(x, path)
+  if x > 0.
+    @report x path "not good $x"
+  end
+end
+
+tst(12, ["here","here"])
+tst(-1, ["here","here"])
+
+
+struct SingleIssue  # validation issue reporting structure
+  x                     # subJSON with validation issue
+  path::Vector{String}  # JSPointer to x
+  msg::String           # error message
+end
+
+struct OneOfIssue  # validation issue reporting structure
+  path::Vector{String}  # JSPointer to x
+  issues::Vector{Issue} # potential issues, collectively making the present issue
+end
+
+
 function check(x, s::Dict)
   evaluate(x, s) == nothing
 end
@@ -40,6 +71,58 @@ evaluate(x, s::Schema) = evaluate(x, s.data)
 # x, asserts = subtest["data"], s.data;
 # x = x["foo"]
 # asserts = asserts["properties"]["foo"];
+
+### check for assertions applicable to arrays
+function array_asserts(x, asserts, path)
+  @doassert asserts "items" begin
+    if keyval isa Dict
+      any( !check(el, keyval) for el in x ) && return "not an array of $keyval"
+    elseif keyval isa Array
+      for (i, iti) in enumerate(keyval)
+        i > length(x) && break
+        check(x[i], iti) || return "not a $iti at pos $i"
+      end
+      if haskey(asserts, "additionalItems") && (length(keyval) < length(x))
+        addit = asserts["additionalItems"]
+        if addit isa Bool
+          (addit == false) && return "additional items not allowed"
+        else
+          for i in length(keyval)+1:length(x)
+            check(x[i], addit) || return "not a $addit at pos $i"
+          end
+        end
+      end
+    end
+  end
+
+  @doassert asserts "maxItems" begin
+    (length(x) <= keyval) ||
+      @report x path "array longer than $keyval"
+  end
+
+  @doassert asserts "minItems" begin
+    (length(x) >= keyval) ||
+      @report x path "array shorter than $keyval"
+  end
+
+  @doassert asserts "uniqueItems" begin
+    if keyval
+      xt = [(xx, typeof(xx)) for xx in x]
+      (length(unique(hash.(xt))) == length(x)) ||
+        @report x path "non unique elements"
+    end
+  end
+
+  @doassert asserts "contains" begin
+    if ! any(check(el, keyval) for el in x)
+      
+      @report x path "does not contain $keyval"
+  end
+
+  nothing
+end
+
+
 function evaluate(x, asserts::Dict)
 
   # if a ref is present, it should supersede all sibling properties
@@ -61,9 +144,8 @@ function evaluate(x, asserts::Dict)
     end
   end
 
-  if haskey(asserts, "enum")
-    en = asserts["enum"]
-    any( x == e for e in en) || return "expected to be one of $en"
+  @doassert asserts "enum" begin
+    any(x == e for e in keyval) || return "expected to be one of $en"
   end
 
   if isa(x, Array)
@@ -253,7 +335,7 @@ function evaluate(x, asserts::Dict)
 
   @doassert asserts "oneOf" begin
     (sum(check(x, subsch) for subsch in keyval)==1) ||
-      return "does not satisfy one of $keyval"
+      return "does not satisfy one of $(join(keyval, "\n"))"
   end
 
   @doassert asserts "not" begin
