@@ -249,7 +249,8 @@ function object_asserts(x, asserts, path)
   if haskey(asserts, "additionalProperties") && length(remainingprops) > 0
     addprop = asserts["additionalProperties"]
     if addprop isa Bool
-      (addprop == false) && @report x path "additional properties not allowed"
+      rpstr = join([ "`$p`" for p in remainingprops], ", ", " & ")
+      (addprop == false) && @report x path "additional property(ies) $rpstr not allowed"
     else
       for k in remainingprops
         ret = validate(x[k], addprop, [path; k])

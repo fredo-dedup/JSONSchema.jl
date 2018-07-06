@@ -101,15 +101,38 @@ jstest = JSON.parse("""
         ]
       },
       "mark": "bar",
-      "encodiing": {
-        "x": {"field": "a", "type": "ordinal"},
+      "encoding": {
+        "x3": {"field": "a", "type": "ordinal"},
         "y": {"field": "b", "type": "quantitative"}
       }
     }
 
     """)
 
-@time evaluate(jstest, sch2);
+@time validate(jstest, sch2);
+
+ret = validate(jstest, sch2)
+
+
+
+
+
+
+
+
+
+
+issue = ret.issues[1]
+function shorterror(issue::SingleIssue)
+    out  = (length(issue.path)==0) ? "" : "in `" * join(issue.path, ".") * "` : "
+    out * issue.msg
+end
+
+shorterror(issue)
+
+
+
+
 
 Profile.clear()
 @profile evaluate(jstest, sch2)
