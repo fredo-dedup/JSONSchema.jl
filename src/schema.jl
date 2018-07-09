@@ -4,7 +4,7 @@
 
 import Base: setindex!, getindex, haskey
 
-## transforms escaped characters back to their intended value in JPaths
+## transforms escaped characters in JPaths back to their intended value
 function unescapeJPath(raw::String)
   ret = replace(raw, "~0", "~")
   ret = replace(ret, "~1", "/")
@@ -38,7 +38,7 @@ function mkidmap!(map::Dict, el::Dict, id0::HTTP.URI)
                      fragment=v[2:end])
     else
       uri = HTTP.URI(v)
-      if uri.scheme == ""  # relative to schema base uri, change just the path of id0
+      if HTTP.scheme(uri) == ""  # relative to schema base uri, change just the path of id0
         uri = HTTP.URI(scheme=id0.scheme, userinfo=id0.userinfo, host=id0.host,
                        port=id0.port, query=id0.query,
                        path= "/" * uri.path)
@@ -86,7 +86,7 @@ function findref(id0, idmap, path::String)
 
   # path is a URI
   uri = HTTP.URI(path)
-  if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
+  if HTTP.scheme(uri) == ""  # uri is relative to base uri => change just the path of id0
     uri = HTTP.URI(scheme=id0.scheme, userinfo=id0.userinfo, host=id0.host,
                    port=id0.port, query=id0.query, path= "/" * uri.path)
   end
@@ -114,7 +114,7 @@ function resolverefs!(s::Dict, id0, idmap)
     v = s["id"]
     if v[1] != '#' # no a plain name fragment
       uri = HTTP.URI(v)
-      if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
+      if HTTP.scheme(uri) == ""  # uri is relative to base uri => change just the path of id0
         uri = HTTP.URI(scheme=id0.scheme, userinfo=id0.userinfo, host=id0.host,
                        port=id0.port, query=id0.query,
                        path= "/" * uri.path)

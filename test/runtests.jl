@@ -5,6 +5,7 @@ else
     using Test
 end
 
+### Load the JSON schema org test suite  ###
 tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/master.zip"
 
 using BinDeps
@@ -20,9 +21,9 @@ run(@build_steps begin
     FileUnpacker(dwnldfn, unzipdir, "JSON-Schema-Test-Suite-master/tests")
 end)
 
-######## Source = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git  #######
 
-# testing for draft 4 specifications
+### testing for draft 4 specifications  ###
+
 tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
 @testset "JSON schema test suite (draft 4)" begin
     @testset "$tfn" for tfn in filter(n -> ismatch(r"\.json$",n), readdir(tsdir))
@@ -31,7 +32,7 @@ tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
         @testset "- $(subschema["description"])" for subschema in (schema)
             spec = Schema(subschema["schema"])
             @testset "* $(subtest["description"])" for subtest in subschema["tests"]
-                @test check(subtest["data"], spec) == subtest["valid"]
+                @test isvalid(subtest["data"], spec) == subtest["valid"]
             end
         end
     end

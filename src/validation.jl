@@ -17,19 +17,6 @@ macro report(what, wher, msg)
   end
 end
 
-#
-# @macroexpand( :( @report x path "eeereuuurr" ))
-#
-# function tst(x, path)
-#   if x > 0.
-#     @report x path "not good $x"
-#   end
-# end
-#
-# tst(12, ["here","here"])
-# tst(-1, ["here","here"])
-#
-
 abstract type AbstractIssue end
 
 struct SingleIssue <: AbstractIssue  # validation issue reporting structure
@@ -356,10 +343,17 @@ end
 
 
 
-##############   check  #########################
+##############   user facing functions #########################
 
 # true / false version of 'validate'
-check(x, s::Schema) = check(x, s.data)
-function check(x, s::Dict)
-  validate(x, s) == nothing
+"""
+
+"""
+function isvalid(x, s::Schema)
+  validate(x, s.data) == nothing
+end
+
+# error diagnosis
+function diagnose(x, s::Schema)
+
 end

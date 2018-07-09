@@ -37,6 +37,24 @@ tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
     end
 end
 
+
+t = HTTP.URI("https://github.com/json-schema-org/JSON-Schema-Test-Suite.git")
+fieldnames(t)
+scheme(t)
+methodswith(HTTP.URI)
+
+
+
+
+
+HTTP.scheme(t)
+
+
+HTTP.URI
+
+HTTP.URIs..
+
+
 #  MAP
 fn = joinpath(tsdir, "oneOf.json")
 schema = JSON.parsefile(fn)
@@ -128,10 +146,40 @@ function shorterror(issue::SingleIssue)
     out * issue.msg
 end
 
-shorterror(issue)
+function shorterror(issue::OneOfIssue)
+    out = "one of these issues : \n"
+    for is in issue.issues
+        out *= " - " * shorterror(is) * "\n"
+    end
+    out
+end
+
+import Base: show
+
+function show(io::IO, issue::OneOfIssue)
+    out = "one of these issues : \n"
+    for is in issue.issues
+        out *= " - " * shorterror(is) * "\n"
+    end
+    println(IO, out)
+end
+
+show(ret)
 
 
 
+
+ms = shorterror(ret)
+println(ms)
+
+
+
+Base.Markdown.MD("""
+# aaa
+ - _error_ here !
+
+
+ """)
 
 
 Profile.clear()
