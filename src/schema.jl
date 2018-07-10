@@ -2,9 +2,9 @@
 #  JSON schema definition and parsing
 ####################################################################
 
-import Base: setindex!, getindex, haskey
+import Base: setindex!, getindex, haskey, show
 
-## transforms escaped characters in JPaths back to their intended value
+## transforms escaped characters in JPaths back to their original value
 function unescapeJPath(raw::String)
   ret = replace(raw, "~0", "~")
   ret = replace(ret, "~1", "/")
@@ -26,6 +26,32 @@ function unescapeJPath(raw::String)
   ret
 end
 
+
+## tranforms uri, if relative, to an absolute URI using the context URI in id0
+function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
+  if HTTP.scheme(uri) == ""  # uri is relative to base uri => change just the path of id0
+    uri = HTTP.URI(scheme   = id0.scheme,
+                   userinfo = id0.userinfo,
+                   host     = id0.host,
+                   port     = id0.port,
+                   query    = id0.query,
+                   path     = "/" * uri.path)
+  end
+  uri
+end
+
+
+## creates a new URI from `uri` with the provided fragment
+function setfragment(uri::HTTP.URI, fragment::String)
+  HTTP.URI(scheme   = uri.scheme,
+           userinfo = uri.userinfo,
+           host     = uri.host,
+           port     = uri.port,
+           path     = uri.path,
+           query    = uri.query,
+           fragment = fragment)
+end
+
 ## constructs the map of ids to schema elements
 mkidmap!(map, x, id0::HTTP.URI) = nothing
 mkidmap!(map, v::Vector, id0::HTTP.URI) = foreach(e -> mkidmap!(map,e,id0), v)
@@ -33,16 +59,9 @@ function mkidmap!(map::Dict, el::Dict, id0::HTTP.URI)
   if haskey(el, "id")
     v = el["id"]
     if v[1] == '#'  # plain name fragment
-      uri = HTTP.URI(scheme=id0.scheme, userinfo=id0.userinfo, host=id0.host,
-                     port=id0.port, path=id0.path, query=id0.query,
-                     fragment=v[2:end])
+      uri = setfragment(id0, v[2:end])
     else
-      uri = HTTP.URI(v)
-      if HTTP.scheme(uri) == ""  # relative to schema base uri, change just the path of id0
-        uri = HTTP.URI(scheme=id0.scheme, userinfo=id0.userinfo, host=id0.host,
-                       port=id0.port, query=id0.query,
-                       path= "/" * uri.path)
-      end
+      uri = toabsoluteURI(HTTP.URI(v), id0)
       id0 = uri # update base uri for inner properties
     end
     map[string(uri)] = el
@@ -85,14 +104,10 @@ function findref(id0, idmap, path::String)
   (path[1:2] == "#/") && return _findelt(s0, path[3:end])
 
   # path is a URI
-  uri = HTTP.URI(path)
-  if HTTP.scheme(uri) == ""  # uri is relative to base uri => change just the path of id0
-    uri = HTTP.URI(scheme=id0.scheme, userinfo=id0.userinfo, host=id0.host,
-                   port=id0.port, query=id0.query, path= "/" * uri.path)
-  end
+  uri = toabsoluteURI(HTTP.URI(path), id0)
+
   #  uri stripped of JPointer (aka 'fragment')
-  uri2 = HTTP.URI(scheme=uri.scheme, userinfo=uri.userinfo, host=uri.host,
-                  port=uri.port, query=uri.query, path=uri.path ) # without JPointer
+  uri2 = setfragment(uri, "") # without JPointer
 
   if ! haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
     info("fetching $uri2")
@@ -112,15 +127,9 @@ function resolverefs!(s::Dict, id0, idmap)
   ## update, if necessary, the base URI
   if haskey(s, "id")
     v = s["id"]
-    if v[1] != '#' # no a plain name fragment
-      uri = HTTP.URI(v)
-      if HTTP.scheme(uri) == ""  # uri is relative to base uri => change just the path of id0
-        uri = HTTP.URI(scheme=id0.scheme, userinfo=id0.userinfo, host=id0.host,
-                       port=id0.port, query=id0.query,
-                       path= "/" * uri.path)
-      end
+    if v[1] != '#' # not a plain name fragment
+      uri = toabsoluteURI(HTTP.URI(v), id0)
       id0 = uri # update base uri for inner properties
-      println(id0)
     end
   end
 
@@ -146,11 +155,14 @@ end
 struct Schema
   data::Dict{String, Any}
 
+  function Schema(sp::String)
+    Schema(JSON.parse(sp))
+  end
+
   function Schema(spec0::Dict)
     spec = deepcopy(spec0)
     # construct dictionary of 'id' properties to resolve references later
-    idmap = Dict{String, Any}()
-    id0 = HTTP.URI()
+    idmap, id0 = Dict{String, Any}(), HTTP.URI()
     idmap[string(id0)] = spec
     mkidmap!(idmap, spec, id0)
 
@@ -165,3 +177,7 @@ end
 setindex!(x::Schema, val, key) = setindex!(x.data, val, key)
 getindex(x::Schema, key) = getindex(x.data, key)
 haskey(x::Schema, key) = haskey(x.data, key)
+
+function show(io::IO, sch::Schema)
+  show(io, "JSON Schema")
+end

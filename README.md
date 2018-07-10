@@ -3,14 +3,18 @@
 _JSON instance validation using JSON Schemas_
 
 [![Build Status](https://travis-ci.org/fredo-dedup/JSONSchema.jl.svg?branch=master)](https://travis-ci.org/fredo-dedup/JSONSchema.jl)
-[![Build status](https://ci.appveyor.com/api/projects/status/b9cmmaquuc08n6uc/branch/master?svg=true)](https://ci.appveyor.com/project/fredo-dedup/vegalite-jl/branch/master)
-[![VegaLite](http://pkg.julialang.org/badges/VegaLite_0.6.svg)](http://pkg.julialang.org/?pkg=VegaLite&ver=0.6)
+[![Build status](https://ci.appveyor.com/api/projects/status/e6ea72l7sbll1via/branch/master?svg=true)](https://ci.appveyor.com/project/fredo-dedup/jsonschema/branch/master)
+[![JSONSchema](http://pkg.julialang.org/badges/JSONSchema_0.6.svg)](http://pkg.julialang.org/?pkg=JSONSchema&ver=0.6)
+[![JSONSchema](http://pkg.julialang.org/badges/JSONSchema_0.7.svg)](http://pkg.julialang.org/?pkg=JSONSchema&ver=0.7)
 [![Coverage Status](https://coveralls.io/repos/github/fredo-dedup/JSONSchema.jl/badge.svg?branch=master)](https://coveralls.io/github/fredo-dedup/JSONSchema.jl?branch=master)
 [![codecov](https://codecov.io/gh/fredo-dedup/JSONSchema.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/fredo-dedup/JSONSchema.jl)
 
 ## Overview
 
-[JSONSchema.jl](https://github.com/fredo-dedup/JSONSchema.jl) is a JSON validation package for the [julia](https://julialang.org/) programming language. The conformity to the JSON Schema standard is validated by using the test suite of the JSON Schema org (https://github.com/json-schema-org/JSON-Schema-Test-Suite).
+[JSONSchema.jl](https://github.com/fredo-dedup/JSONSchema.jl) is a JSON validation package for the [julia](https://julialang.org/) programming language. Given a validation Schema (see http://json-schema.org/specification.html) this package can verify if any JSON instance follows all the assertions defining a valid document.
+
+This package has been validated with the test suite of the JSON Schema org (https://github.com/json-schema-org/JSON-Schema-Test-Suite) (draft v4 only at the moment)
+
 
 ## API
 
@@ -38,14 +42,13 @@ isvalid("{ "foo": true }", myschema) # true
 isvalid("{ "bar": 12.5 }", myschema) # false
 ```
 The JSON instance to be tested can be provided as a String or a pre-processed
-`JSON`
-processed instance.
+`JSON` object created with the `JSON` package.
 
 
-Should you need a diagnostic message with the validation, you can use the
-`diagnose()` function which will return either `nothing` if the instance is
-valid or a message detailing which assertion failed (with a differing degrees
-  of detail controlled by the `verbose` option).
+Should you need a diagnostic message about the validation, you can use the
+`diagnose()` function. `diagnose()` which will either return `nothing` if the instance is
+valid or a message detailing which assertion failed (with varying levels
+of detail controlled by the `verbose` option).
 ```julia
 diagnose("{ "foo": true }", myschema) # nothing
 diagnose("{ "bar": 12.5 }", myschema)

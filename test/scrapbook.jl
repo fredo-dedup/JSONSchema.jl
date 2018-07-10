@@ -5,10 +5,32 @@ else
     using Test
 end
 
+
+
 tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/master.zip"
+
+
+
+
+using BinaryProvider
+
+BinaryProvider.download(tsurl, prefix, verbose=true)
+
+prefix = mktempdir()
+prod = FileProduct(prefix, "JSON-Schema-Test-Suite-master/tests/draft4")
+
+install(tsurl, "66656565", prefix=prefix, force=true, ignore_platform=true, verbose=true)
+
+
+tsurl2 = "file://C:/Users/frtestar/Downloads/JSON-Schema-Test-Suite-master.zip"
+install(tsurl2, "66656565", prefix=prefix, force=true, ignore_platform=true, verbose=true)
+
 
 using BinDeps
 @BinDeps.setup
+
+
+
 
 destdir = mktempdir()
 dwnldfn = joinpath(destdir, "test-suite.zip")
@@ -19,6 +41,10 @@ run(@build_steps begin
     CreateDirectory(unzipdir, true)
     FileUnpacker(dwnldfn, unzipdir, "JSON-Schema-Test-Suite-master/tests")
 end)
+
+
+35.1 / 1.349
+
 
 ######## Source = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git  #######
 

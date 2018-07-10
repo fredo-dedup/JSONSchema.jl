@@ -5,7 +5,7 @@ else
     using Test
 end
 
-### Load the JSON schema org test suite  ###
+### Download the JSON schema org test suite  ###
 tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/master.zip"
 
 using BinDeps
