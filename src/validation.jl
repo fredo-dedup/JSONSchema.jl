@@ -349,11 +349,14 @@ end
 """
 
 """
-function isvalid(x, s::Schema)
+isvalid(x::String, s::Schema) = isvalid(JSON.parse(x), s)
+function isvalid(x::Dict, s::Schema)
   validate(x, s.data) == nothing
 end
 
 # error diagnosis
-function diagnose(x, s::Schema)
-
+diagnose(x::String, s::Schema; verbose::Bool=false) =
+  diagnose(JSON.parse(x), s, verbose=verbose)
+function diagnose(x::Dict, s::Schema; verbose::Bool=false)
+  validate(x, s.data)
 end

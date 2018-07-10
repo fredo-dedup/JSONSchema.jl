@@ -29,7 +29,7 @@ end
 
 ## tranforms uri, if relative, to an absolute URI using the context URI in id0
 function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
-  if HTTP.scheme(uri) == ""  # uri is relative to base uri => change just the path of id0
+  if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
     uri = HTTP.URI(scheme   = id0.scheme,
                    userinfo = id0.userinfo,
                    host     = id0.host,
