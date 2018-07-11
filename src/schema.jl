@@ -26,7 +26,6 @@ function unescapeJPath(raw::String)
   ret
 end
 
-
 ## tranforms uri, if relative, to an absolute URI using the context URI in id0
 function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
   if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
@@ -40,7 +39,6 @@ function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
   uri
 end
 
-
 ## creates a new URI from `uri` with the provided fragment
 function setfragment(uri::HTTP.URI, fragment::String)
   HTTP.URI(scheme   = uri.scheme,
@@ -50,6 +48,16 @@ function setfragment(uri::HTTP.URI, fragment::String)
            path     = uri.path,
            query    = uri.query,
            fragment = fragment)
+end
+
+## removes the fragment part of an URI
+function rmfragment(uri::HTTP.URI)
+  HTTP.URI(scheme   = uri.scheme,
+           userinfo = uri.userinfo,
+           host     = uri.host,
+           port     = uri.port,
+           path     = uri.path,
+           query    = uri.query)
 end
 
 ## constructs the map of ids to schema elements
@@ -107,7 +115,7 @@ function findref(id0, idmap, path::String)
   uri = toabsoluteURI(HTTP.URI(path), id0)
 
   #  uri stripped of JPointer (aka 'fragment')
-  uri2 = setfragment(uri, "") # without JPointer
+  uri2 = rmfragment(uri) # without JPointer
 
   if ! haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
     info("fetching $uri2")
@@ -179,5 +187,5 @@ getindex(x::Schema, key) = getindex(x.data, key)
 haskey(x::Schema, key) = haskey(x.data, key)
 
 function show(io::IO, sch::Schema)
-  show(io, "JSON Schema")
+  show(io, Schema)
 end

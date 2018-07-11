@@ -38,11 +38,11 @@ myschema = Schema(sch)
 You can then check the validity of a given JSON instance by calling `isvalid`
 with the JSON instance to be tested and the `Schema`:
 ```julia
-isvalid("{ "foo": true }", myschema) # true
-isvalid("{ "bar": 12.5 }", myschema) # false
+isvalid( JSON.parse("{ "foo": true }"), myschema) # true
+isvalid( JSON.parse("{ "bar": 12.5 }"), myschema) # false
 ```
-The JSON instance to be tested can be provided as a String or a pre-processed
-`JSON` object created with the `JSON` package.
+The JSON instance should be provided as a pre-processed `JSON` object created
+with the `JSON` package.
 
 
 Should you need a diagnostic message about the validation, you can use the
@@ -50,7 +50,7 @@ Should you need a diagnostic message about the validation, you can use the
 valid or a message detailing which assertion failed (with varying levels
 of detail controlled by the `verbose` option).
 ```julia
-diagnose("{ "foo": true }", myschema) # nothing
-diagnose("{ "bar": 12.5 }", myschema)
+diagnose( JSON.parse("{ "foo": true }") , myschema) # nothing
+diagnose( JSON.parse("{ "bar": 12.5 }") , myschema)
 # xxxxx
 ```

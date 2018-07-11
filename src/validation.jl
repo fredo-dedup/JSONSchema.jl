@@ -261,7 +261,6 @@ function validate(x, asserts::Dict, path=String[])
     push!(refhistory, asserts)
   end
 
-
   @doassert asserts "type" begin
     if keyval isa Array
       any( type_asserts(x, typ2, path)==nothing for typ2 in keyval ) ||
@@ -296,7 +295,6 @@ function validate(x, asserts::Dict, path=String[])
     ret = string_asserts(x, asserts, path)
     (ret==nothing) || return ret
   end
-
 
   @doassert asserts "allOf" begin
     for subsch in keyval
@@ -345,18 +343,12 @@ end
 
 ##############   user facing functions #########################
 
-# true / false version of 'validate'
-"""
 
-"""
-isvalid(x::String, s::Schema) = isvalid(JSON.parse(x), s)
-function isvalid(x::Dict, s::Schema)
+function isvalid(x, s::Schema)
   validate(x, s.data) == nothing
 end
 
 # error diagnosis
-diagnose(x::String, s::Schema; verbose::Bool=false) =
-  diagnose(JSON.parse(x), s, verbose=verbose)
-function diagnose(x::Dict, s::Schema; verbose::Bool=false)
+function diagnose(x, s::Schema; verbose::Bool=false)
   validate(x, s.data)
 end
