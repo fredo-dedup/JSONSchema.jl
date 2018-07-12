@@ -121,7 +121,8 @@ function findref(id0, idmap, path::String)
     info("fetching $uri2")
     r = HTTP.request("GET", uri2)
     (r.status != 200) && error("remote ref $uri2 not found")
-    idmap[string(uri2)] = JSON.parse(String(r.body))
+    rref = Schema(JSON.parse(String(r.body))) # process remote ref
+    idmap[string(uri2)] = rref.data
   end
 
   _findelt(idmap[string(uri2)], uri.fragment)
