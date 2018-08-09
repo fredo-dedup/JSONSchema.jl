@@ -1,4 +1,5 @@
-using JSONSchema
+using JSONSchema, JSON
+
 @static if VERSION < v"0.7.0-DEV.2005"
     using Base.Test
 else
@@ -19,18 +20,11 @@ BinaryProvider.download(tsurl, prefix, verbose=true)
 prefix = mktempdir()
 prod = FileProduct(prefix, "JSON-Schema-Test-Suite-master/tests/draft4")
 
-install(tsurl, "66656565", prefix=prefix, force=true, ignore_platform=true, verbose=true)
-
-
 tsurl2 = "file://C:/Users/frtestar/Downloads/JSON-Schema-Test-Suite-master.zip"
-install(tsurl2, "66656565", prefix=prefix, force=true, ignore_platform=true, verbose=true)
 
 
 using BinDeps
 @BinDeps.setup
-
-
-
 
 destdir = mktempdir()
 dwnldfn = joinpath(destdir, "test-suite.zip")
@@ -41,9 +35,6 @@ run(@build_steps begin
     CreateDirectory(unzipdir, true)
     FileUnpacker(dwnldfn, unzipdir, "JSON-Schema-Test-Suite-master/tests")
 end)
-
-
-35.1 / 1.349
 
 
 ######## Source = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git  #######
@@ -57,40 +48,51 @@ tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
         @testset "- $(subschema["description"])" for subschema in (schema)
             spec = Schema(subschema["schema"])
             @testset "* $(subtest["description"])" for subtest in subschema["tests"]
-                @test check(subtest["data"], spec) == subtest["valid"]
+                @test isvalid(subtest["data"], spec) == subtest["valid"]
             end
         end
     end
 end
 
 
-t = HTTP.URI("https://github.com/json-schema-org/JSON-Schema-Test-Suite.git")
-fieldnames(t)
-scheme(t)
-methodswith(HTTP.URI)
-
-
-
-
-
-HTTP.scheme(t)
-
-
-HTTP.URI
-
-HTTP.URIs..
-
 
 #  MAP
-fn = joinpath(tsdir, "oneOf.json")
+fn = joinpath(tsdir, "definitions.json")
 schema = JSON.parsefile(fn)
 subschema = schema[1]
 spec = Schema(subschema["schema"])
 for subtest in subschema["tests"]
     info("- ", subtest["description"],
-         " : ", check(subtest["data"], spec),
+         " : ", isvalid(subtest["data"], spec),
          " / ", subtest["valid"])
 end
+
+ttt = JSONSchema.HTTP.URI(subschema["schema"]["\$ref"])
+fieldnames(ttt)
+clipboard(ttt)
+ttt.scheme
+uri = ttt
+id0 = JSONSchema.HTTP.URI("")
+
+JSONSchema.toabsoluteURI(uri, id0)
+
+typeof(uri)
+
+methods(JSONSchema.toabsoluteURI)
+
+
+
+if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
+  uri = HTTP.URI(scheme   = id0.scheme,
+                 userinfo = id0.userinfo,
+                 host     = id0.host,
+                 port     = id0.port,
+                 query    = id0.query,
+                 path     = "/" * uri.path)
+end
+uri
+
+
 
 
 tmpuri = "http://json-schema.org/draft-04/schema"
@@ -124,13 +126,12 @@ end end)
 
 #################################################################################
 
-
+using JSONSchema
 sch = JSON.parsefile(joinpath(@__DIR__, "vega-lite-schema.json"))
+
 @time (sch2 = Schema(sch);nothing)
 
-Profile.clear()
-@profile (for i in 1:10 ; Schema(sch) ; end)
-Profile.print()
+sch2 = Schema(sch)
 
 
 jstest = JSON.parse("""
@@ -153,17 +154,32 @@ jstest = JSON.parse("""
 
     """)
 
-@time validate(jstest, sch2);
-
-ret = validate(jstest, sch2)
+isvalid(jstest, sch2)
 
 
 
+myschema = Schema("""
+ {
+    "properties": {
+       "foo": {},
+       "bar": {}
+    },
+    "required": ["foo"]
+ }""")
+
+
+isvalid(JSON.parse("{ \"foo\": true }"), myschema) # true
+isvalid(JSON.parse("{ \"bar\": 12.5 }"), myschema) # false
+
+myschema["properties"]
 
 
 
 
 
+
+diagnose("{ "foo": true }", myschema) # nothing
+diagnose("{ "bar": 12.5 }", myschema)
 
 
 issue = ret.issues[1]
