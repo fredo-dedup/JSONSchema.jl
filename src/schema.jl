@@ -34,7 +34,7 @@ function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
                    host     = id0.host,
                    port     = id0.port,
                    query    = id0.query,
-                   path     = "/" * uri.path)
+                   path     = id0.path * uri.path)
   end
   uri
 end
@@ -118,7 +118,7 @@ function findref(id0, idmap, path::String)
   uri2 = rmfragment(uri) # without JPointer
 
   if ! haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
-    info("fetching $uri2")
+    @info("fetching $uri2")
     r = HTTP.request("GET", uri2)
     (r.status != 200) && error("remote ref $uri2 not found")
     rref = Schema(JSON.parse(String(r.body))) # process remote ref
@@ -148,6 +148,7 @@ function resolverefs!(s::Dict, id0, idmap)
       # We will replace the path string with the schema element pointed at, thus marking it as
       # resolved. This should prevent infinite recursions caused by self referencing
       # path = s["\$ref"]
+      println(join([id0, collect(keys(idmap)), v], " - "))
       s["\$ref"] = findref(id0, idmap, v)
     else
       resolverefs!(v, id0, idmap)
@@ -164,14 +165,14 @@ end
 struct Schema
   data::Dict{String, Any}
 
-  function Schema(sp::String)
-    Schema(JSON.parse(sp))
+  function Schema(sp::String; idmap=Dict{String, Any}())
+    Schema(JSON.parse(sp), idmap=idmap)
   end
 
-  function Schema(spec0::Dict)
+  function Schema(spec0::Dict; idmap=Dict{String, Any}())
     spec = deepcopy(spec0)
     # construct dictionary of 'id' properties to resolve references later
-    idmap, id0 = Dict{String, Any}(), HTTP.URI()
+    id0 = HTTP.URI()
     idmap[string(id0)] = spec
     mkidmap!(idmap, spec, id0)
 

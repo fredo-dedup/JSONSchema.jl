@@ -7,13 +7,43 @@ else
 end
 
 
+##### download test, issue =
+### Exception calling "DownloadFile" with "2" argument(s): "The remote server returned an error: (407) Proxy
+###     Authentication Required."
+using BinaryProvider
+
+src = "https://github.com/staticfloat/RmathBuilder/releases/download/v0.2.0-1/libRmath.x86_64-w64-mingw32.tar.gz"
+dest = "C:/temp/libRmath.x86_64-w64-mingw32.tar.gz"
+
+BinaryProvider.download(src, dest, verbose=true)
+
+
+agent = "Bibi"
+psh_path = "powershell"
+webclient_code = """
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12;
+    \$webclient = (New-Object System.Net.Webclient);
+    \$webclient.Proxy.Credentials =[System.Net.CredentialCache]::DefaultNetworkCredentials
+    \$webclient.Headers.Add("user-agent", "$agent");
+    \$webclient.DownloadFile("$src", "$dest")
+    """
+
+replace(webclient_code, "\n" => " ")
+run(`$psh_path -NoProfile -Command "$webclient_code"`)
+
+
 
 tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/master.zip"
 
 
+BinaryProvider.gen_unpack_cmd(dwnldfn, unzipdir)
+clipboard(BinaryProvider.gen_unpack_cmd(dwnldfn, unzipdir))
 
 
-using BinaryProvider
+run(`'C:\HOMEWARE\julia\Julia-0.7.0\bin\7z.exe' x 'C:\Users\frtestar\AppData\Local\Temp\jl_94F.tmp\test-suite.zip' -y -so`, stdout=`'C:\HOMEWARE\julia\Julia-0.7.0\bin\7z.exe' x -si -y -ttar '-oC:\Users\frtestar\AppData\Local\Temp\jl_94F.tmp\test-suite'`)
+
+mcm = pipeline(`'C:\HOMEWARE\julia\Julia-0.7.0\bin\7z.exe' x 'C:\Users\frtestar\AppData\Local\Temp\jl_94F.tmp\test-suite.zip' -y -so`, stdout=`'C:\HOMEWARE\julia\Julia-0.7.0\bin\7z.exe' x -si -y -ttar '-oC:\Users\frtestar\AppData\Local\Temp\jl_94F.tmp\test-suite'`)
+run(mcm)
 
 BinaryProvider.download(tsurl, prefix, verbose=true)
 
@@ -23,24 +53,40 @@ prod = FileProduct(prefix, "JSON-Schema-Test-Suite-master/tests/draft4")
 tsurl2 = "file://C:/Users/frtestar/Downloads/JSON-Schema-Test-Suite-master.zip"
 
 
-using BinDeps
-@BinDeps.setup
+
+
+##################################################################
+
+using JSONSchema, JSON
+import BinaryProvider
+
+@static if VERSION < v"0.7.0-DEV.2005"
+    using Base.Test
+else
+    using Test
+end
+
+
+tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/1.2.0.tar.gz"
 
 destdir = mktempdir()
-dwnldfn = joinpath(destdir, "test-suite.zip")
+dwnldfn = joinpath(destdir, "test-suite.tar.gz")
+BinaryProvider.download(tsurl, dwnldfn, verbose=true)
+
 unzipdir = joinpath(destdir, "test-suite")
-run(@build_steps begin
-    CreateDirectory(destdir, true)
-    FileDownloader(tsurl, dwnldfn)
-    CreateDirectory(unzipdir, true)
-    FileUnpacker(dwnldfn, unzipdir, "JSON-Schema-Test-Suite-master/tests")
-end)
+BinaryProvider.unpack(dwnldfn, unzipdir)
+
+
+### testing for draft 4 specifications  ###
+
+tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-1.2.0/tests/draft4")
 
 
 ######## Source = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git  #######
 
 unzipdir = "c:/temp"
 tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
+
 @testset "JSON schema test suite (draft 4)" begin
     @testset "$tfn" for tfn in filter(n -> ismatch(r"\.json$",n), readdir(tsdir))
         fn = joinpath(tsdir, tfn)
@@ -56,14 +102,61 @@ end
 
 
 
-#  MAP
-fn = joinpath(tsdir, "definitions.json")
+# ref remotes problem
+fn = joinpath(tsdir, "refRemote.json")
 schema = JSON.parsefile(fn)
-subschema = schema[1]
+subschema = schema[2]
 spec = Schema(subschema["schema"])
+
+import HTTP
+specx = deepcopy(subschema["schema"])
+# construct dictionary of 'id' properties to resolve references later
+idmap = Dict{String, Any}()
+id0 = HTTP.URI()
+idmap[string(id0)] = specx
+JSONSchema.mkidmap!(idmap, specx, id0)
+idmap
+
+v = "folder/"
+uri = JSONSchema.toabsoluteURI(HTTP.URI("folderInteger.json"),
+    HTTP.URI("http://localhost:1234/folder/"))
+
+
+
+#  uri stripped of JPointer (aka 'fragment')
+uri2 = rmfragment(uri) # without JPointer
+
+
+JSONSchema.toabsoluteURI(HTTP.URI(v), id0)
+
+JSONSchema.resolverefs!(specx, id0, idmap)
+
+remfn = joinpath(tsdir, "../../remotes")
+for rn in ["integer.json", "name.json", "subSchemas.json", "folder/folderInteger.json"]
+    idmap["http://localhost:1234/" * rn] = Schema(JSON.parsefile(joinpath(remfn, rn))).data
+end
+
+
+# resolve all refs to the corresponding schema elements
+JSONSchema.resolverefs!(specx, id0, idmap)
+
+spec = Schema(specx)
+
+
+idmap = Dict{String, Any}()
+remfn = joinpath(tsdir, "../../remotes")
+for rn in ["integer.json", "name.json", "subSchemas.json", "folder/folderInteger.json"]
+    idmap["http://localhost:1234/" * rn] = Schema(JSON.parsefile(joinpath(remfn, rn))).data
+end
+
+#  MAP
+fn = joinpath(tsdir, "refRemote.json")
+schema = JSON.parsefile(fn)
+subschema = schema[5]
+spec = Schema(subschema["schema"], idmap=idmap)
 for subtest in subschema["tests"]
     info("- ", subtest["description"],
-         " : ", isvalid(subtest["data"], spec),
+         " : ", JSONSchema.isvalid(subtest["data"], spec),
          " / ", subtest["valid"])
 end
 
@@ -102,25 +195,6 @@ HTTP.get(tmpuri; verbose=2)
 HTTP.request("GET", tmpuri)
 
 
-
-ENV["https_proxy"] = ENV["http_proxy"]
-
-spec0 = subschema["schema"]
-mkSchema(subschema["schema"])
-subtest = subschema["tests"][1]
-x, s = subtest["data"], spec
-check(x, s)
-subtest["valid"]
-
-typeof(s["properties"]["foo"])
-s0 = spec
-s = spec.asserts["items"][2]
-
-asserts = copy(s.asserts)
-
-macroexpand( quote @doassert asserts "not" begin
-    check(x, keyval) && return "satisfies 'not' assertion $notassert"
-end end)
 
 
 
