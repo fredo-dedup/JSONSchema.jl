@@ -6,8 +6,8 @@ import Base: setindex!, getindex, haskey, show
 
 ## transforms escaped characters in JPaths back to their original value
 function unescapeJPath(raw::String)
-  ret = replace(raw, "~0", "~")
-  ret = replace(ret, "~1", "/")
+  ret = replace(raw, "~0" => "~")
+  ret = replace(ret, "~1" => "/")
 
   m = match(r"%([0-9A-F]{2})", ret)
   if m != nothing
@@ -15,7 +15,7 @@ function unescapeJPath(raw::String)
     for c in m.captures
       # c = first(m.captures)
       haskey(repls, String("%$c")) && continue
-      repls[String("%$c")] = "$(Char(parse("0x" * c)))"
+      repls[String("%$c")] = "$(Char(Meta.parse("0x" * c)))"
     end
 
     for (k,v) in repls
@@ -34,7 +34,7 @@ function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
                    host     = id0.host,
                    port     = id0.port,
                    query    = id0.query,
-                   path     = id0.path * uri.path)
+                   path     = uri.path)
   end
   uri
 end
@@ -165,12 +165,14 @@ end
 struct Schema
   data::Dict{String, Any}
 
-  function Schema(sp::String; idmap=Dict{String, Any}())
-    Schema(JSON.parse(sp), idmap=idmap)
+  function Schema(sp::String; idmap0=Dict{String, Any}())
+    Schema(JSON.parse(sp), idmap0=idmap0)
   end
 
-  function Schema(spec0::Dict; idmap=Dict{String, Any}())
-    spec = deepcopy(spec0)
+  function Schema(spec0::Dict; idmap0=Dict{String, Any}())
+    spec  = deepcopy(spec0)
+    idmap = deepcopy(idmap0)
+
     # construct dictionary of 'id' properties to resolve references later
     id0 = HTTP.URI()
     idmap[string(id0)] = spec

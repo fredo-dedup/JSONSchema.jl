@@ -1,21 +1,7 @@
 using JSONSchema, JSON
-
-@static if VERSION < v"0.7.0-DEV.2005"
-    using Base.Test
-else
-    using Test
-end
-
+using Test
 
 ##### download test, issue =
-### Exception calling "DownloadFile" with "2" argument(s): "The remote server returned an error: (407) Proxy
-###     Authentication Required."
-using BinaryProvider
-
-src = "https://github.com/staticfloat/RmathBuilder/releases/download/v0.2.0-1/libRmath.x86_64-w64-mingw32.tar.gz"
-dest = "C:/temp/libRmath.x86_64-w64-mingw32.tar.gz"
-
-BinaryProvider.download(src, dest, verbose=true)
 
 
 agent = "Bibi"
@@ -31,64 +17,13 @@ webclient_code = """
 replace(webclient_code, "\n" => " ")
 run(`$psh_path -NoProfile -Command "$webclient_code"`)
 
-
-
-tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/master.zip"
-
-
-BinaryProvider.gen_unpack_cmd(dwnldfn, unzipdir)
-clipboard(BinaryProvider.gen_unpack_cmd(dwnldfn, unzipdir))
-
-
-run(`'C:\HOMEWARE\julia\Julia-0.7.0\bin\7z.exe' x 'C:\Users\frtestar\AppData\Local\Temp\jl_94F.tmp\test-suite.zip' -y -so`, stdout=`'C:\HOMEWARE\julia\Julia-0.7.0\bin\7z.exe' x -si -y -ttar '-oC:\Users\frtestar\AppData\Local\Temp\jl_94F.tmp\test-suite'`)
-
-mcm = pipeline(`'C:\HOMEWARE\julia\Julia-0.7.0\bin\7z.exe' x 'C:\Users\frtestar\AppData\Local\Temp\jl_94F.tmp\test-suite.zip' -y -so`, stdout=`'C:\HOMEWARE\julia\Julia-0.7.0\bin\7z.exe' x -si -y -ttar '-oC:\Users\frtestar\AppData\Local\Temp\jl_94F.tmp\test-suite'`)
-run(mcm)
-
-BinaryProvider.download(tsurl, prefix, verbose=true)
-
-prefix = mktempdir()
-prod = FileProduct(prefix, "JSON-Schema-Test-Suite-master/tests/draft4")
-
-tsurl2 = "file://C:/Users/frtestar/Downloads/JSON-Schema-Test-Suite-master.zip"
-
-
-
-
 ##################################################################
-
-using JSONSchema, JSON
-import BinaryProvider
-
-@static if VERSION < v"0.7.0-DEV.2005"
-    using Base.Test
-else
-    using Test
-end
-
-
-tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/1.2.0.tar.gz"
-
-destdir = mktempdir()
-dwnldfn = joinpath(destdir, "test-suite.tar.gz")
-BinaryProvider.download(tsurl, dwnldfn, verbose=true)
-
-unzipdir = joinpath(destdir, "test-suite")
-BinaryProvider.unpack(dwnldfn, unzipdir)
-
-
-### testing for draft 4 specifications  ###
-
-tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-1.2.0/tests/draft4")
-
-
 ######## Source = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git  #######
 
-unzipdir = "c:/temp"
+# unzipdir = "c:/temp"
 tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
-
 @testset "JSON schema test suite (draft 4)" begin
-    @testset "$tfn" for tfn in filter(n -> ismatch(r"\.json$",n), readdir(tsdir))
+    @testset "$tfn" for tfn in filter(n -> occursin(r"\.json$",n), readdir(tsdir))
         fn = joinpath(tsdir, tfn)
         schema = JSON.parsefile(fn)
         @testset "- $(subschema["description"])" for subschema in (schema)
@@ -100,13 +35,93 @@ tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
     end
 end
 
+#################################################################
+
+function runsubtests(subschema, spec)
+    for subtest in subschema["tests"]
+        res = JSONSchema.isvalid(subtest["data"], spec)
+        expected = subtest["valid"]
+        @info "$(subtest["description"]) : $res / $expected"
+    end
+end
+
+#################################################################
 
 
-# ref remotes problem
-fn = joinpath(tsdir, "refRemote.json")
-schema = JSON.parsefile(fn)
-subschema = schema[2]
+
+#  MAP
+schema = JSON.parsefile(joinpath(tsdir, "definitions.json"))
+subschema = schema[1]
+clipboard(subschema["schema"])
+# "\$ref"=>"http://json-schema.org/draft-04/schema#"
 spec = Schema(subschema["schema"])
+for subtest in subschema["tests"]
+    info("- ", subtest["description"],
+         " : ", JSONSchema.isvalid(subtest["data"], spec),
+         " / ", subtest["valid"])
+end
+
+
+# pb de proxy avec HTTP ???
+
+using HTTP
+io = Base.BufferStream()
+@async while !eof(io)
+    bytes = readavailable(io)
+    println("GET data: \$bytes")
+end
+r = HTTP.request("GET", "http://httpbin.org/get", response_stream=io)
+close(io)
+
+
+####################################################################
+# ref remotes problem
+
+idmap0 = Dict{String, Any}()
+remfn = joinpath(tsdir, "../../remotes")
+for rn in ["integer.json", "name.json", "subSchemas.json", "folder/folderInteger.json"]
+    idmap0["http://localhost:1234/" * rn] = Schema(JSON.parsefile(joinpath(remfn, rn))).data
+end
+
+schema = JSON.parsefile(joinpath(tsdir, "refRemote.json"))
+subschema = schema[5]
+clipboard(subschema["schema"])
+# Dict{String,Any}("\$ref"=>"http://localhost:1234/integer.json")
+# Dict{String,Any}("\$ref"=>"http://localhost:1234/subSchemas.json#/integer")
+# Dict{String,Any}("\$ref"=>"http://localhost:1234/subSchemas.json#/refToInteger")
+# ("items"=>Dict{String,Any}("items"=>Dict{String,Any}("\$ref"=>"folderInteger.json"),"id"=>"folder/"),"id"=>"http://localhost:1234/")
+(
+    "properties" => (
+        "list" => ("\$ref"=>"#/definitions/baz")
+    ),
+    "id" => "http://localhost:1234/scope_change_defs1.json",
+    "definitions" => (
+        "baz" => (
+            "items" => (
+                "\$ref"=>"folderInteger.json"
+            ),
+            "id" => "folder/",
+            "type" => "array"
+        )
+    ),
+    "type"=>"object"
+)
+
+spec = Schema(subschema["schema"], idmap0=idmap0)
+runsubtests(subschema, spec)
+
+
+subschema = schema[2]
+clipboard(subschema["schema"])
+
+spec = Schema(subschema["schema"], idmap0=idmap0)
+runsubtests(subschema, spec)
+
+
+
+
+
+
 
 import HTTP
 specx = deepcopy(subschema["schema"])
@@ -199,6 +214,8 @@ HTTP.request("GET", tmpuri)
 
 
 #################################################################################
+## diagnostic tuning
+#################################################################################
 
 using JSONSchema
 sch = JSON.parsefile(joinpath(@__DIR__, "vega-lite-schema.json"))
@@ -282,9 +299,6 @@ end
 
 show(ret)
 
-
-
-
 ms = shorterror(ret)
 println(ms)
 
@@ -300,7 +314,4 @@ Base.Markdown.MD("""
 
 Profile.clear()
 @profile evaluate(jstest, sch2)
-
 Profile.print()
-
-5+6

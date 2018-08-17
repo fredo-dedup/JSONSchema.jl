@@ -21,21 +21,21 @@ BinaryProvider.unpack(dwnldfn, unzipdir)
 # the test suites use the 'remotes' folder to simulate remote refs with the
 #  'http://localhost:1234' url.  To have tests cope with this, the id dictionary
 # is preloaded with the files in ''../remotes'
-idmap = Dict{String, Any}()
+idmap0 = Dict{String, Any}()
 remfn = joinpath(tsdir, "../../remotes")
 for rn in ["integer.json", "name.json", "subSchemas.json", "folder/folderInteger.json"]
-    idmap["http://localhost:1234/" * rn] = Schema(JSON.parsefile(joinpath(remfn, rn))).data
+    idmap0["http://localhost:1234/" * rn] = Schema(JSON.parsefile(joinpath(remfn, rn))).data
 end
 
 
 ### testing for draft 4 specifications  ###
 tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
 @testset "JSON schema test suite (draft 4)" begin
-    @testset "$tfn" for tfn in filter(n -> ismatch(r"\.json$",n), readdir(tsdir))
+    @testset "$tfn" for tfn in filter(n -> occursin(r"\.json$",n), readdir(tsdir))
         fn = joinpath(tsdir, tfn)
         schema = JSON.parsefile(fn)
         @testset "- $(subschema["description"])" for subschema in (schema)
-            spec = Schema(subschema["schema"], idmap=idmap)
+            spec = Schema(subschema["schema"], idmap0=idmap0)
             @testset "* $(subtest["description"])" for subtest in subschema["tests"]
                 @test isvalid(subtest["data"], spec) == subtest["valid"]
             end
@@ -43,14 +43,14 @@ tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
     end
 end
 
-
+### testing for draft 4 specifications  ###
 tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft6")
 @testset "JSON schema test suite (draft 6)" begin
-    @testset "$tfn" for tfn in filter(n -> ismatch(r"\.json$",n), readdir(tsdir))
+    @testset "$tfn" for tfn in filter(n -> occursin(r"\.json$",n), readdir(tsdir))
         fn = joinpath(tsdir, tfn)
         schema = JSON.parsefile(fn)
         @testset "- $(subschema["description"])" for subschema in (schema)
-            spec = Schema(subschema["schema"], idmap=idmap)
+            spec = Schema(subschema["schema"], idmap0=idmap0)
             @testset "* $(subtest["description"])" for subtest in subschema["tests"]
                 @test isvalid(subtest["data"], spec) == subtest["valid"]
             end

@@ -212,7 +212,7 @@ function object_asserts(x, asserts, path)
     for k in remainingprops
       hasmatch = false
       for (rk, rtest) in patprop
-        if ismatch(Regex(rk), k)
+        if occursin(Regex(rk), k)
           hasmatch = true
           ret = validate(x[k], rtest, [path; k])
           (ret == nothing) || return ret
