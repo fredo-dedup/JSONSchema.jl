@@ -20,7 +20,7 @@ run(`$psh_path -NoProfile -Command "$webclient_code"`)
 ##################################################################
 ######## Source = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git  #######
 
-# unzipdir = "c:/temp"
+unzipdir = "c:/temp"
 tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests/draft4")
 @testset "JSON schema test suite (draft 4)" begin
     @testset "$tfn" for tfn in filter(n -> occursin(r"\.json$",n), readdir(tsdir))
@@ -84,121 +84,33 @@ for rn in ["integer.json", "name.json", "subSchemas.json", "folder/folderInteger
 end
 
 schema = JSON.parsefile(joinpath(tsdir, "refRemote.json"))
-subschema = schema[5]
-clipboard(subschema["schema"])
-# Dict{String,Any}("\$ref"=>"http://localhost:1234/integer.json")
-# Dict{String,Any}("\$ref"=>"http://localhost:1234/subSchemas.json#/integer")
-# Dict{String,Any}("\$ref"=>"http://localhost:1234/subSchemas.json#/refToInteger")
-# ("items"=>Dict{String,Any}("items"=>Dict{String,Any}("\$ref"=>"folderInteger.json"),"id"=>"folder/"),"id"=>"http://localhost:1234/")
-(
-    "properties" => (
-        "list" => ("\$ref"=>"#/definitions/baz")
-    ),
-    "id" => "http://localhost:1234/scope_change_defs1.json",
-    "definitions" => (
-        "baz" => (
-            "items" => (
-                "\$ref"=>"folderInteger.json"
-            ),
-            "id" => "folder/",
-            "type" => "array"
-        )
-    ),
-    "type"=>"object"
-)
+subschema = schema[6]
+# clipboard(subschema["schema"])
 
 spec = Schema(subschema["schema"], idmap0=idmap0)
 runsubtests(subschema, spec)
 
+uri = HTTP.URI("folderInteger.json")
+id0 = HTTP.URI("http://localhost:1234/folder")
 
-subschema = schema[2]
-clipboard(subschema["schema"])
+uri = HTTP.URI(scheme   = id0.scheme,
+           userinfo = id0.userinfo,
+           host     = id0.host,
+           port     = id0.port,
+           query    = id0.query,
+           path     = "/" * strip(id0.path, '/') * "/" * strip(uri.path, '/'))
 
-spec = Schema(subschema["schema"], idmap0=idmap0)
-runsubtests(subschema, spec)
-
-
-
-
-
-
-
-import HTTP
-specx = deepcopy(subschema["schema"])
-# construct dictionary of 'id' properties to resolve references later
-idmap = Dict{String, Any}()
-id0 = HTTP.URI()
-idmap[string(id0)] = specx
-JSONSchema.mkidmap!(idmap, specx, id0)
-idmap
-
-v = "folder/"
-uri = JSONSchema.toabsoluteURI(HTTP.URI("folderInteger.json"),
-    HTTP.URI("http://localhost:1234/folder/"))
+methods(HTTP.URI)
 
 
 
-#  uri stripped of JPointer (aka 'fragment')
-uri2 = rmfragment(uri) # without JPointer
-
-
-JSONSchema.toabsoluteURI(HTTP.URI(v), id0)
-
-JSONSchema.resolverefs!(specx, id0, idmap)
-
-remfn = joinpath(tsdir, "../../remotes")
-for rn in ["integer.json", "name.json", "subSchemas.json", "folder/folderInteger.json"]
-    idmap["http://localhost:1234/" * rn] = Schema(JSON.parsefile(joinpath(remfn, rn))).data
+for subschema in schema
+    @info "⨀ $(subschema["description"])"
+    spec = Schema(subschema["schema"], idmap0=idmap0)
+    runsubtests(subschema, spec)
 end
 
 
-# resolve all refs to the corresponding schema elements
-JSONSchema.resolverefs!(specx, id0, idmap)
-
-spec = Schema(specx)
-
-
-idmap = Dict{String, Any}()
-remfn = joinpath(tsdir, "../../remotes")
-for rn in ["integer.json", "name.json", "subSchemas.json", "folder/folderInteger.json"]
-    idmap["http://localhost:1234/" * rn] = Schema(JSON.parsefile(joinpath(remfn, rn))).data
-end
-
-#  MAP
-fn = joinpath(tsdir, "refRemote.json")
-schema = JSON.parsefile(fn)
-subschema = schema[5]
-spec = Schema(subschema["schema"], idmap=idmap)
-for subtest in subschema["tests"]
-    info("- ", subtest["description"],
-         " : ", JSONSchema.isvalid(subtest["data"], spec),
-         " / ", subtest["valid"])
-end
-
-ttt = JSONSchema.HTTP.URI(subschema["schema"]["\$ref"])
-fieldnames(ttt)
-clipboard(ttt)
-ttt.scheme
-uri = ttt
-id0 = JSONSchema.HTTP.URI("")
-
-JSONSchema.toabsoluteURI(uri, id0)
-
-typeof(uri)
-
-methods(JSONSchema.toabsoluteURI)
-
-
-
-if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
-  uri = HTTP.URI(scheme   = id0.scheme,
-                 userinfo = id0.userinfo,
-                 host     = id0.host,
-                 port     = id0.port,
-                 query    = id0.query,
-                 path     = "/" * uri.path)
-end
-uri
 
 
 

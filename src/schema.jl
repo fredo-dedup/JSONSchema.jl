@@ -28,14 +28,47 @@ end
 
 ## tranforms uri, if relative, to an absolute URI using the context URI in id0
 function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
+  # @info "(1) uri : $uri, id0 : $id0"
   if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
     uri = HTTP.URI(scheme   = id0.scheme,
                    userinfo = id0.userinfo,
                    host     = id0.host,
                    port     = id0.port,
                    query    = id0.query,
-                   path     = uri.path)
+                   path     = "/" * strip(uri.path, '/'))
+  else
+    uri = HTTP.URI(scheme   = uri.scheme,
+             userinfo = uri.userinfo,
+             host     = uri.host,
+             port     = uri.port,
+             query    = uri.query,
+             path     = "")
   end
+  # @info "(->1) uri : $uri"
+  uri
+end
+
+function toabsoluteURI2(uri::HTTP.URI, id0::HTTP.URI)
+  # @info "(2) uri : $uri, id0 : $id0"
+  if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
+    newpath = ( id0.path == "" ? "" : "/" * strip(id0.path, '/') ) *
+      "/" * strip(uri.path, '/')
+
+    uri = HTTP.URI(scheme   = id0.scheme,
+                   userinfo = id0.userinfo,
+                   host     = id0.host,
+                   port     = id0.port,
+                   query    = id0.query,
+                   path     = newpath)
+  else
+    uri = HTTP.URI(scheme   = uri.scheme,
+             userinfo = uri.userinfo,
+             host     = uri.host,
+             port     = uri.port,
+             query    = uri.query,
+             path     = uri.path)
+  end
+  # @info "(->2) uri : $uri"
   uri
 end
 
@@ -112,7 +145,7 @@ function findref(id0, idmap, path::String)
   (path[1:2] == "#/") && return _findelt(s0, path[3:end])
 
   # path is a URI
-  uri = toabsoluteURI(HTTP.URI(path), id0)
+  uri = toabsoluteURI2(HTTP.URI(path), id0)
 
   #  uri stripped of JPointer (aka 'fragment')
   uri2 = rmfragment(uri) # without JPointer
@@ -148,7 +181,7 @@ function resolverefs!(s::Dict, id0, idmap)
       # We will replace the path string with the schema element pointed at, thus marking it as
       # resolved. This should prevent infinite recursions caused by self referencing
       # path = s["\$ref"]
-      println(join([id0, collect(keys(idmap)), v], " - "))
+      #  println(join([id0, collect(keys(idmap)), v], " - "))
       s["\$ref"] = findref(id0, idmap, v)
     else
       resolverefs!(v, id0, idmap)
