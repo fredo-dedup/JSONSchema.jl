@@ -26,71 +26,50 @@ function unescapeJPath(raw::String)
   ret
 end
 
+## decomposes an URI into its elements
+function todict(uri::HTTP.URI)
+  pdict = Dict( fn => getfield(uri, fn) for fn in fieldnames(HTTP.URI))
+  delete!(pdict, :uri)
+end
+
 ## tranforms uri, if relative, to an absolute URI using the context URI in id0
 function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
   # @info "(1) uri : $uri, id0 : $id0"
-  if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
-    uri = HTTP.URI(scheme   = id0.scheme,
-                   userinfo = id0.userinfo,
-                   host     = id0.host,
-                   port     = id0.port,
-                   query    = id0.query,
-                   path     = "/" * strip(uri.path, '/'))
+  if uri.scheme == ""  # uri is relative, rebase from id0
+    els = todict(id0)
+    els[:path] = "/" * strip(uri.path, '/')
   else
-    uri = HTTP.URI(scheme   = uri.scheme,
-             userinfo = uri.userinfo,
-             host     = uri.host,
-             port     = uri.port,
-             query    = uri.query,
-             path     = "")
+    els = todict(uri)
+    els[:path] = ""  # the path part is not needed for an 'id'
   end
-  # @info "(->1) uri : $uri"
-  uri
+  HTTP.URI(;els...)
 end
 
-function toabsoluteURI2(uri::HTTP.URI, id0::HTTP.URI)
+function fullRefURI(uri::HTTP.URI, id0::HTTP.URI)
   # @info "(2) uri : $uri, id0 : $id0"
-  if uri.scheme == ""  # uri is relative to base uri => change just the path of id0
-    newpath = ( id0.path == "" ? "" : "/" * strip(id0.path, '/') ) *
-      "/" * strip(uri.path, '/')
-
-    uri = HTTP.URI(scheme   = id0.scheme,
-                   userinfo = id0.userinfo,
-                   host     = id0.host,
-                   port     = id0.port,
-                   query    = id0.query,
-                   path     = newpath)
+  if uri.scheme == ""  # uri is relative, rebase from id0
+    els = todict(id0)
+    els[:path] = ( id0.path == "" ? "" : "/" * strip(id0.path, '/') ) *
+                  "/" * strip(uri.path, '/')
+    els[:fragment] = uri.fragment
   else
-    uri = HTTP.URI(scheme   = uri.scheme,
-             userinfo = uri.userinfo,
-             host     = uri.host,
-             port     = uri.port,
-             query    = uri.query,
-             path     = uri.path)
+    els = todict(uri)
   end
-  # @info "(->2) uri : $uri"
-  uri
+  HTTP.URI(;els...)
 end
 
 ## creates a new URI from `uri` with the provided fragment
 function setfragment(uri::HTTP.URI, fragment::String)
-  HTTP.URI(scheme   = uri.scheme,
-           userinfo = uri.userinfo,
-           host     = uri.host,
-           port     = uri.port,
-           path     = uri.path,
-           query    = uri.query,
-           fragment = fragment)
+  els = todict(uri)
+  els[:fragment] = fragment
+  HTTP.URI(;els...)
 end
 
 ## removes the fragment part of an URI
 function rmfragment(uri::HTTP.URI)
-  HTTP.URI(scheme   = uri.scheme,
-           userinfo = uri.userinfo,
-           host     = uri.host,
-           port     = uri.port,
-           path     = uri.path,
-           query    = uri.query)
+  els = todict(uri)
+  delete!(els, :fragment)
+  HTTP.URI(;els...)
 end
 
 ## constructs the map of ids to schema elements
@@ -113,8 +92,8 @@ function mkidmap!(map::Dict, el::Dict, id0::HTTP.URI)
   end
 end
 
-## searches the element refered to by JSPointer in path in the schema s
-function _findelt(s, path)
+## searches the element refered to by JSPointer/fragment in path in the schema s
+function findelement(s, path)
   for el in split(path, "/")
     realel = unescapeJPath(String(el))
     (realel == "") && continue
@@ -134,6 +113,13 @@ function _findelt(s, path)
   s
 end
 
+## fetch remote schema
+function getremoteschema(uri::HTTP.URI)
+  r = HTTP.request("GET", uri)
+  (r.status != 200) && error("remote ref $uri not found")
+  Schema(JSON.parse(String(r.body))) # process remote ref
+end
+
 function findref(id0, idmap, path::String)
   s0 = idmap[string(id0)]
 
@@ -142,38 +128,42 @@ function findref(id0, idmap, path::String)
   (path == "#") && return s0
 
   # path is a JPointer
-  (path[1:2] == "#/") && return _findelt(s0, path[3:end])
+  (path[1:2] == "#/") && return findelement(s0, path[3:end])
 
   # path is a URI
-  uri = toabsoluteURI2(HTTP.URI(path), id0)
-
-  #  uri stripped of JPointer (aka 'fragment')
+  uri = fullRefURI(HTTP.URI(path), id0)
   uri2 = rmfragment(uri) # without JPointer
 
-  if ! haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
+  if !haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
     @info("fetching $uri2")
-    r = HTTP.request("GET", uri2)
-    (r.status != 200) && error("remote ref $uri2 not found")
-    rref = Schema(JSON.parse(String(r.body))) # process remote ref
-    idmap[string(uri2)] = rref.data
+    idmap[string(uri2)] = getremoteschema(uri2).data
   end
 
-  _findelt(idmap[string(uri2)], uri.fragment)
+  findelement(idmap[string(uri2)], uri.fragment)
 end
 
+## update, if necessary, the id of the explored item
+function updateid(id0::HTTP.URI, s::Dict)
+  if haskey(s, "id")
+    v = s["id"]
+    v[1] != '#' && return toabsoluteURI(HTTP.URI(v), id0)
+  end
+  id0
+end
 
 # finds recursively all "$ref" and resolve their path
 resolverefs!(s, id0, idmap) = nothing
 resolverefs!(s::Vector, id0, idmap) = foreach(e -> resolverefs!(e, id0, idmap), s)
 function resolverefs!(s::Dict, id0, idmap)
-  ## update, if necessary, the base URI
-  if haskey(s, "id")
-    v = s["id"]
-    if v[1] != '#' # not a plain name fragment
-      uri = toabsoluteURI(HTTP.URI(v), id0)
-      id0 = uri # update base uri for inner properties
-    end
-  end
+  id0 = updateid(id0, s)
+  # ## update, if necessary, the base URI
+  # if haskey(s, "id")
+  #   v = s["id"]
+  #   if v[1] != '#' # not a plain name fragment
+  #     uri = toabsoluteURI(HTTP.URI(v), id0)
+  #     id0 = uri # update base uri for inner properties
+  #   end
+  # end
 
   for (k,v) in s
     if (k == "\$ref") && (v isa String)
