@@ -32,39 +32,6 @@ function todict(uri::HTTP.URI)
   delete!(pdict, :uri)
 end
 
-## tranforms uri, if relative, to an absolute URI using the context URI in id0
-function toabsoluteURI(uri::HTTP.URI, id0::HTTP.URI)
-  # @info "(1) uri : $uri, id0 : $id0"
-  if uri.scheme == ""  # uri is relative, rebase from id0
-    els = todict(id0)
-    els[:path] = "/" * strip(uri.path, '/')
-  else
-    els = todict(uri)
-    els[:path] = ""  # the path part is not needed for an 'id'
-  end
-  HTTP.URI(;els...)
-end
-
-function fullRefURI(uri::HTTP.URI, id0::HTTP.URI)
-  # @info "(2) uri : $uri, id0 : $id0"
-  if uri.scheme == ""  # uri is relative, rebase from id0
-    els = todict(id0)
-    els[:path] = ( id0.path == "" ? "" : "/" * strip(id0.path, '/') ) *
-                  "/" * strip(uri.path, '/')
-    els[:fragment] = uri.fragment
-  else
-    els = todict(uri)
-  end
-  HTTP.URI(;els...)
-end
-
-## creates a new URI from `uri` with the provided fragment
-function setfragment(uri::HTTP.URI, fragment::String)
-  els = todict(uri)
-  els[:fragment] = fragment
-  HTTP.URI(;els...)
-end
-
 ## removes the fragment part of an URI
 function rmfragment(uri::HTTP.URI)
   els = todict(uri)
@@ -72,19 +39,34 @@ function rmfragment(uri::HTTP.URI)
   HTTP.URI(;els...)
 end
 
+## calculates the full id of the explored item using the parent URI in
+#   'id0', and the 'id' property in 's'
+function updateid(id0::HTTP.URI, s::String)
+  id2 = HTTP.URI(s)
+  id2.scheme != "" && return id2
+
+  els = todict(id0)
+  if id2.path != ""  # replace path of id0
+    oldpath = match(r"^(.*/).*$", id0.path)
+    if oldpath == nothing
+      els[:path] = "/" * id2.path
+    else
+      els[:path] = oldpath.captures[1] * id2.path
+    end
+  end
+
+  els[:fragment] = id2.fragment
+
+  HTTP.URI(;els...)
+end
+
 ## constructs the map of ids to schema elements
 mkidmap!(map, x, id0::HTTP.URI) = nothing
 mkidmap!(map, v::Vector, id0::HTTP.URI) = foreach(e -> mkidmap!(map,e,id0), v)
 function mkidmap!(map::Dict, el::Dict, id0::HTTP.URI)
-  if haskey(el, "id")
-    v = el["id"]
-    if v[1] == '#'  # plain name fragment
-      uri = setfragment(id0, v[2:end])
-    else
-      uri = toabsoluteURI(HTTP.URI(v), id0)
-      id0 = uri # update base uri for inner properties
-    end
-    map[string(uri)] = el
+  if haskey(el, "id") && isa(el["id"], String)
+    id0 = updateid(id0, el["id"])
+    map[string(id0)] = el
   end
 
   for (k,v) in el
@@ -121,17 +103,15 @@ function getremoteschema(uri::HTTP.URI)
 end
 
 function findref(id0, idmap, path::String)
-  s0 = idmap[string(id0)]
-
   # path refers to root
-  (length(path) == 0) && return s0
-  (path == "#") && return s0
+  (path in ["", "#"]) && return idmap[string(id0)]
 
   # path is a JPointer
-  (path[1:2] == "#/") && return findelement(s0, path[3:end])
+  (length(path) > 1 ) && (path[1:2] == "#/") &&
+    return findelement(idmap[string(id0)], path[3:end])
 
   # path is a URI
-  uri = fullRefURI(HTTP.URI(path), id0)
+  uri = updateid(id0, path) # fullRefURI(HTTP.URI(path), id0)
   uri2 = rmfragment(uri) # without JPointer
 
   if !haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
@@ -142,36 +122,19 @@ function findref(id0, idmap, path::String)
   findelement(idmap[string(uri2)], uri.fragment)
 end
 
-## update, if necessary, the id of the explored item
-function updateid(id0::HTTP.URI, s::Dict)
-  if haskey(s, "id")
-    v = s["id"]
-    v[1] != '#' && return toabsoluteURI(HTTP.URI(v), id0)
-  end
-  id0
-end
-
 # finds recursively all "$ref" and resolve their path
 resolverefs!(s, id0, idmap) = nothing
 resolverefs!(s::Vector, id0, idmap) = foreach(e -> resolverefs!(e, id0, idmap), s)
 function resolverefs!(s::Dict, id0, idmap)
-  id0 = updateid(id0, s)
-  # ## update, if necessary, the base URI
-  # if haskey(s, "id")
-  #   v = s["id"]
-  #   if v[1] != '#' # not a plain name fragment
-  #     uri = toabsoluteURI(HTTP.URI(v), id0)
-  #     id0 = uri # update base uri for inner properties
-  #   end
-  # end
+  if haskey(s, "id") && isa(s["id"], String)
+    id0 = updateid(id0, s["id"])
+  end
 
   for (k,v) in s
     if (k == "\$ref") && (v isa String)
       # This ref has not been resolved yet (otherwise it would not be a String)
       # We will replace the path string with the schema element pointed at, thus marking it as
       # resolved. This should prevent infinite recursions caused by self referencing
-      # path = s["\$ref"]
-      #  println(join([id0, collect(keys(idmap)), v], " - "))
       s["\$ref"] = findref(id0, idmap, v)
     else
       resolverefs!(v, id0, idmap)

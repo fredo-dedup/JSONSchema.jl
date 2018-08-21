@@ -61,21 +61,18 @@ for subtest in subschema["tests"]
          " / ", subtest["valid"])
 end
 
+HTTP.URI("http://localhost:1234/ancd").path
 
-# pb de proxy avec HTTP ???
+HTTP.URIs.splitpath(HTTP.URI("http://localhost:1234/abcd").path)
+HTTP.URIs.absuri
+Regex.match()
 
-using HTTP
-io = Base.BufferStream()
-@async while !eof(io)
-    bytes = readavailable(io)
-    println("GET data: \$bytes")
-end
-r = HTTP.request("GET", "http://httpbin.org/get", response_stream=io)
-close(io)
+rma = match(r"^(.*/).*$", "/ancd/").captures[1]
 
 
 ####################################################################
-# ref remotes problem
+# idmap setup for tests
+####################################################################
 
 idmap0 = Dict{String, Any}()
 remfn = joinpath(tsdir, "../../remotes")
@@ -83,25 +80,43 @@ for rn in ["integer.json", "name.json", "subSchemas.json", "folder/folderInteger
     idmap0["http://localhost:1234/" * rn] = Schema(JSON.parsefile(joinpath(remfn, rn))).data
 end
 
+idmap0["http://json-schema.org:/draft-04/schema"] =
+    Schema(JSON.parsefile("c:/temp/draft04-schema.json")).data;
+
+
+####################################################################
+# ref remotes problem
+####################################################################
+
 schema = JSON.parsefile(joinpath(tsdir, "refRemote.json"))
-subschema = schema[6]
+subschema = schema[7]
 # clipboard(subschema["schema"])
+# collect(keys(idmap0))
 
 spec = Schema(subschema["schema"], idmap0=idmap0)
 runsubtests(subschema, spec)
 
-uri = HTTP.URI("folderInteger.json")
-id0 = HTTP.URI("http://localhost:1234/folder")
+subtest = subschema["tests"][2]
+res = JSONSchema.isvalid(subtest["data"], spec)
+JSONSchema.validate(subtest["data"], spec)
 
-uri = HTTP.URI(scheme   = id0.scheme,
-           userinfo = id0.userinfo,
-           host     = id0.host,
-           port     = id0.port,
-           query    = id0.query,
-           path     = "/" * strip(id0.path, '/') * "/" * strip(uri.path, '/'))
 
-methods(HTTP.URI)
+schema = JSON.parsefile(joinpath(tsdir, "refRemote.json"))
+schema = JSON.parsefile(joinpath(tsdir, "ref.json"))
+for subschema in schema
+    @info "⨀ $(subschema["description"])"
+    spec = Schema(subschema["schema"], idmap0=idmap0)
+    runsubtests(subschema, spec)
+end
 
+####################################################################
+# ref.json errors
+
+schema = JSON.parsefile(joinpath(tsdir, "ref.json"))
+subschema = schema[9]
+
+spec = Schema(subschema["schema"], idmap0=idmap0)
+runsubtests(subschema, spec)
 
 
 for subschema in schema
@@ -111,25 +126,11 @@ for subschema in schema
 end
 
 
-
-
-
-
-tmpuri = "http://json-schema.org/draft-04/schema"
-conf = (verbose=2,)
-
-HTTP.get(tmpuri; verbose=2)
-HTTP.request("GET", tmpuri)
-
-
-
-
-
 #################################################################################
 ## diagnostic tuning
 #################################################################################
 
-using JSONSchema
+using JSONSchemas
 sch = JSON.parsefile(joinpath(@__DIR__, "vega-lite-schema.json"))
 
 @time (sch2 = Schema(sch);nothing)
