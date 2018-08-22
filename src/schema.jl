@@ -19,7 +19,7 @@ function unescapeJPath(raw::String)
     end
 
     for (k,v) in repls
-      ret = replace(ret, k, v)
+      ret = replace(ret, k => v)
     end
   end
 
@@ -64,8 +64,11 @@ end
 mkidmap!(map, x, id0::HTTP.URI) = nothing
 mkidmap!(map, v::Vector, id0::HTTP.URI) = foreach(e -> mkidmap!(map,e,id0), v)
 function mkidmap!(map::Dict, el::Dict, id0::HTTP.URI)
-  if haskey(el, "id") && isa(el["id"], String)
+  if haskey(el, "id") && isa(el["id"], String) # draft 04
     id0 = updateid(id0, el["id"])
+    map[string(id0)] = el
+  elseif haskey(el, "\$id") && isa(el["\$id"], String) # draft 06+
+    id0 = updateid(id0, el["\$id"])
     map[string(id0)] = el
   end
 
@@ -83,7 +86,7 @@ function findelement(s, path)
       haskey(s, realel) || error("missing property '$realel' in $s")
       s = s[realel]
     elseif s isa Vector
-      idx = parse(realel)
+      idx = Meta.parse(realel)
       (idx isa Int) || error("expected numeric array index instead of '$realel'")
       idx += 1
       (length(s) < idx) && error("item index $(idx-1) larger than array $s")
@@ -126,8 +129,10 @@ end
 resolverefs!(s, id0, idmap) = nothing
 resolverefs!(s::Vector, id0, idmap) = foreach(e -> resolverefs!(e, id0, idmap), s)
 function resolverefs!(s::Dict, id0, idmap)
-  if haskey(s, "id") && isa(s["id"], String)
+  if haskey(s, "id") && isa(s["id"], String) # draft 04
     id0 = updateid(id0, s["id"])
+  elseif haskey(s, "\$id") && isa(s["\$id"], String) # draft 06+
+    id0 = updateid(id0, s["\$id"])
   end
 
   for (k,v) in s
@@ -149,7 +154,11 @@ end
 ################################################################################
 
 struct Schema
-  data::Dict{String, Any}
+  data::Union{Dict{String, Any}, Bool}
+
+  function Schema(spec0::Bool; idmap0=Dict{String, Any}())
+    new(spec0)
+  end
 
   function Schema(sp::String; idmap0=Dict{String, Any}())
     Schema(JSON.parse(sp), idmap0=idmap0)

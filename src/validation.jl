@@ -53,7 +53,10 @@ end
 ### check for assertions applicable to arrays
 function array_asserts(x, asserts, path)
   @doassert asserts "items" begin
-    if keyval isa Dict
+    if (keyval isa Bool) && ! keyval
+      (length(x) > 0) && @report x path "schema (=false) does not allow non-empty arrays"
+
+    elseif keyval isa Dict
       for i in 1:length(x)
         ret = validate(x[i], keyval, [path; "$(i-1)"])
         (ret==nothing) || return ret
@@ -132,7 +135,7 @@ function number_asserts(x, asserts, path)
         (x <= val2) || @report x path "not <= $val2"
       end
     elseif keyval isa Number  # draft 6
-      (x < keyval) || @report x path "not < $val"
+      (x < keyval) || @report x path "not < $keyval"
     end
   end
 
@@ -167,7 +170,7 @@ function string_asserts(x, asserts, path)
   end
 
   @doassert asserts "pattern" begin
-    ismatch(Regex(keyval), x) || @report x path "string does not match pattern $keyval"
+    occursin(Regex(keyval), x) || @report x path "string does not match pattern $keyval"
   end
 
   nothing
@@ -179,7 +182,7 @@ function object_asserts(x, asserts, path)
     dep = asserts["dependencies"]
     for (k,v) in dep
       if haskey(x, k)
-        if v isa Dict
+        if (v isa Dict) || (v isa Bool)
           ret = validate(x, v, path)
           (ret == nothing) || return ret
         else
@@ -187,6 +190,19 @@ function object_asserts(x, asserts, path)
             haskey(x, rk) || @report x path "required property '$rk' missing (dependency $k)"
           end
         end
+      end
+    end
+  end
+
+  @doassert asserts "propertyNames" begin
+    if isa(keyval, Bool)
+      if ! keyval
+        (length(x) > 0) && @report x path "schema (=false) allows only empty objects here"
+      end
+    else
+      for propname in keys(x)
+        ret = string_asserts(propname, keyval , path)
+        (ret==nothing) || return ret
       end
     end
   end
@@ -251,6 +267,13 @@ end
 
 
 # s = spec
+# for cases where there is no schema but a true/false (in allOf, etc..)
+function validate(x, s::Bool, path=String[])
+  s || @report x path "schema (=false) does not allow any value here"
+  nothing
+end
+
+
 validate(x, s::Schema, path=String[]) = validate(x, s.data, path)
 function validate(x, asserts::Dict, path=String[])
   # if a ref is present, it should supersede all sibling properties
@@ -260,6 +283,8 @@ function validate(x, asserts::Dict, path=String[])
     (asserts in refhistory) && error("circular references in schema")
     push!(refhistory, asserts)
   end
+  isa(asserts, Bool) && return validate(x, asserts, path) # in case ref turns out to be a boolean
+
 
   @doassert asserts "type" begin
     if keyval isa Array
@@ -274,6 +299,10 @@ function validate(x, asserts::Dict, path=String[])
   @doassert asserts "enum" begin
     any(x == e for e in keyval) ||
       @report x path "expected to be one of $keyval"
+  end
+
+  @doassert asserts "const" begin
+    (x == keyval) || @report x path "expected to be equal to $keyval"
   end
 
   if isa(x, Array)

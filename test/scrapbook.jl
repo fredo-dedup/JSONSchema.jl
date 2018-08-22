@@ -45,30 +45,6 @@ function runsubtests(subschema, spec)
     end
 end
 
-#################################################################
-
-
-
-#  MAP
-schema = JSON.parsefile(joinpath(tsdir, "definitions.json"))
-subschema = schema[1]
-clipboard(subschema["schema"])
-# "\$ref"=>"http://json-schema.org/draft-04/schema#"
-spec = Schema(subschema["schema"])
-for subtest in subschema["tests"]
-    info("- ", subtest["description"],
-         " : ", JSONSchema.isvalid(subtest["data"], spec),
-         " / ", subtest["valid"])
-end
-
-HTTP.URI("http://localhost:1234/ancd").path
-
-HTTP.URIs.splitpath(HTTP.URI("http://localhost:1234/abcd").path)
-HTTP.URIs.absuri
-Regex.match()
-
-rma = match(r"^(.*/).*$", "/ancd/").captures[1]
-
 
 ####################################################################
 # idmap setup for tests
@@ -83,6 +59,11 @@ end
 idmap0["http://json-schema.org:/draft-04/schema"] =
     Schema(JSON.parsefile("c:/temp/draft04-schema.json")).data;
 
+idmap0["http://json-schema.org:/draft-06/schema"] =
+    Schema(JSON.parsefile("c:/temp/draft06-schema.json")).data;
+
+idmap0["http://json-schema.org:/draft-07/schema"] =
+    Schema(JSON.parsefile("c:/temp/draft07-schema.json")).data;
 
 ####################################################################
 # ref remotes problem
@@ -113,11 +94,10 @@ end
 # ref.json errors
 
 schema = JSON.parsefile(joinpath(tsdir, "ref.json"))
-subschema = schema[9]
+subschema = schema[10]
 
 spec = Schema(subschema["schema"], idmap0=idmap0)
 runsubtests(subschema, spec)
-
 
 for subschema in schema
     @info "⨀ $(subschema["description"])"
@@ -130,8 +110,7 @@ end
 ## diagnostic tuning
 #################################################################################
 
-using JSONSchemas
-sch = JSON.parsefile(joinpath(@__DIR__, "vega-lite-schema.json"))
+sch = JSON.parsefile(joinpath(@__DIR__, "vega-lite-schema-3.0.0.json"))
 
 @time (sch2 = Schema(sch);nothing)
 
@@ -151,7 +130,7 @@ jstest = JSON.parse("""
       },
       "mark": "bar",
       "encoding": {
-        "x3": {"field": "a", "type": "ordinal"},
+        "x2": {"fieldo": "a", "type00": "ordinal"},
         "y": {"field": "b", "type": "quantitative"}
       }
     }
@@ -159,6 +138,40 @@ jstest = JSON.parse("""
     """)
 
 isvalid(jstest, sch2)
+diag = JSONSchema.validate(jstest, sch2)
+
+report(jstest, sch2)
+
+lmax = maximum(e -> length(e.path), diag.issues)
+hyps = filter(e -> length(e.path) == lmax, diag.issues)
+
+if length(hyps) == 1
+    single = hyps[1]
+    # msg = "in $(join(single.path, \".\") : $(single.msg)"
+else
+end
+
+singleissuerecap(si::JSONSchema.SingleIssue) =
+  "in [$(join(si.path, '.'))] : $(si.msg)"
+
+function report(dat, sch)
+  diag = JSONSchema.validate(dat, sch)
+
+  if isa(diag, JSONSchema.OneOfIssue)
+      lmax = maximum(e -> length(e.path), diag.issues)
+      tmp = filter(e -> length(e.path) == lmax, diag.issues)
+      diag = length(tmp)==1 ? tmp[1] : tmp
+  end
+
+  if isa(diag, JSONSchema.SingleIssue)
+      error(singleissuerecap(diag))
+  elseif isa(diag, Array)
+      msg = ["One of :";
+             map(x -> "  - " * singleissuerecap(x), diag)]
+      error(join(msg, "\n"))
+  end
+  nothing
+end
 
 
 
