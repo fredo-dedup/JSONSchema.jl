@@ -1,11 +1,7 @@
 using JSONSchema, JSON
 import BinaryProvider
 
-@static if VERSION < v"0.7.0-DEV.2005"
-    using Base.Test
-else
-    using Test
-end
+using Test
 
 ### load the "json-schema-org/JSON-Schema-Test-Suite" project from github
 tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/master.tar.gz"
@@ -16,7 +12,6 @@ BinaryProvider.download(tsurl, dwnldfn, verbose=true)
 
 unzipdir = joinpath(destdir, "test-suite")
 BinaryProvider.unpack(dwnldfn, unzipdir)
-
 
 ################################################################################
 ### Applying test suites for draft 4/6/7 specifications                      ###
