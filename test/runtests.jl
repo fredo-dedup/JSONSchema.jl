@@ -40,7 +40,7 @@ BinaryProvider.unpack(dwnldfn, unzipdir)
         @testset "- $(subschema["description"])" for subschema in (schema)
             spec = Schema(subschema["schema"], idmap0=idmap0)
             @testset "* $(subtest["description"])" for subtest in subschema["tests"]
-                # @test isvalid(subtest["data"], spec) == subtest["valid"]
+                @test isvalid(subtest["data"], spec) == subtest["valid"]
             end
         end
     end
