@@ -4,9 +4,9 @@ _JSON instance validation using JSON Schemas_
 
 [![Build Status](https://travis-ci.org/fredo-dedup/JSONSchema.jl.svg?branch=master)](https://travis-ci.org/fredo-dedup/JSONSchema.jl)
 [![Build status](https://ci.appveyor.com/api/projects/status/e6ea72l7sbll1via/branch/master?svg=true)](https://ci.appveyor.com/project/fredo-dedup/jsonschema/branch/master)
-[![JSONSchema](http://pkg.julialang.org/badges/JSONSchema_0.6.svg)](http://pkg.julialang.org/?pkg=JSONSchema&ver=0.6)
 [![JSONSchema](http://pkg.julialang.org/badges/JSONSchema_0.7.svg)](http://pkg.julialang.org/?pkg=JSONSchema&ver=0.7)
-[![Coverage Status](https://coveralls.io/repos/github/fredo-dedup/JSONSchema.jl/badge.svg?branch=master)](https://coveralls.io/github/fredo-dedup/JSONSchema.jl?branch=master)
+[![JSONSchema](http://pkg.julialang.org/badges/JSONSchema_1.0.svg)](http://pkg.julialang.org/?pkg=JSONSchema&ver=1.0)
+[![Coverage Status](https://coveralls.io/repos/github/fredo-dedup/JSONSchema/badge.svg?branch=master)](https://coveralls.io/github/fredo-dedup/JSONSchema?branch=master)
 [![codecov](https://codecov.io/gh/fredo-dedup/JSONSchema.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/fredo-dedup/JSONSchema.jl)
 
 ## Overview
