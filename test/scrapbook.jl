@@ -130,7 +130,7 @@ jstest = JSON.parse("""
       },
       "mark": "bar",
       "encoding": {
-        "x2": {"fieldo": "a", "type00": "ordinal"},
+        "x2": {"field": "a", "type": "ordinal"},
         "y": {"field": "b", "type": "quantitative"}
       }
     }
@@ -138,21 +138,42 @@ jstest = JSON.parse("""
     """)
 
 isvalid(jstest, sch2)
-diag = JSONSchema.validate(jstest, sch2)
+diagnose(jstest, sch2)
+diagno = JSONSchema.validate(jstest, sch2)
 
-report(jstest, sch2)
+error(report(jstest, sch2))
 
-lmax = maximum(e -> length(e.path), diag.issues)
-hyps = filter(e -> length(e.path) == lmax, diag.issues)
 
-if length(hyps) == 1
-    single = hyps[1]
-    # msg = "in $(join(single.path, \".\") : $(single.msg)"
-else
-end
+flatten(ofi::JSONSchema.OneOfIssue) = vcat([flatten(i) for i in ofi.issues]...)
+flatten(si::JSONSchema.SingleIssue) = [si;]
 
 singleissuerecap(si::JSONSchema.SingleIssue) =
-  "in [$(join(si.path, '.'))] : $(si.msg)"
+    "in [$(join(si.path, '.'))] : $(si.msg)"
+
+flatten(diagno)
+
+function report(x, s::Schema)
+    hyps = JSONSchema.validate(x, s)
+    (hyps == nothing) && return nothing
+
+    hyps2 = flatten(hyps)
+
+    # The selection heuristic is to keep only the issues appearing deeper in
+    # the tree. This will trim out the 'oneOf' assertions that were not
+    # intended in the first place in 'x' (hopefully).
+    lmax = maximum(e -> length(e.path), hyps2)
+    filter!(e -> length(e.path) == lmax, hyps2)
+
+    if length(hyps2) == 1
+        return singleissuerecap(hyps2[1])
+    else
+        msg = ["One of :";
+               map(x -> "  - " * singleissuerecap(x), hyps2) ]
+        return join(msg, "\n")
+    end
+    nothing
+end
+
 
 function report(dat, sch)
   diag = JSONSchema.validate(dat, sch)
@@ -195,8 +216,8 @@ myschema["properties"]
 
 
 
-diagnose("{ "foo": true }", myschema) # nothing
-diagnose("{ "bar": 12.5 }", myschema)
+report(JSON.parse("{ \"foo\": true }"), myschema) # nothing
+clipboard(report(JSON.parse("{ \"bar\": 12.5 }"), myschema))
 
 
 issue = ret.issues[1]

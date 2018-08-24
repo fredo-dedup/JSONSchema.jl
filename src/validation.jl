@@ -372,12 +372,77 @@ end
 
 ##############   user facing functions #########################
 
+"""
+`isvalid(x, s::Schema)`
 
+Check that a document `x` is valid against the Schema `s`.
+
+## Examples
+
+```julia
+julia> myschema = Schema("
+  {
+    \"properties\": {
+      \"foo\": {},
+      \"bar\": {}
+    },
+    \"required\": [\"foo\"]
+  }
+  ")
+
+julia> isvalid( JSON.parse("{ \"foo\": true }"), myschema)
+true
+julia> isvalid( JSON.parse("{ \"bar\": 12.5 }"), myschema)
+false
+```
+"""
 function isvalid(x, s::Schema)
   validate(x, s.data) == nothing
 end
 
-# error diagnosis
-function diagnose(x, s::Schema; verbose::Bool=false)
-  validate(x, s.data)
+
+
+flatten(ofi::JSONSchema.OneOfIssue) = vcat([flatten(i) for i in ofi.issues]...)
+flatten(si::JSONSchema.SingleIssue) = [si;]
+
+singleissuerecap(si::JSONSchema.SingleIssue) =
+    "in [$(join(si.path, '.'))] : $(si.msg)"
+
+
+"""
+`diagnose(x, s::Schema)`
+
+Check that a document `x` is valid against the Schema `s`. If
+valid return `nothing`, and if not, return a diagnostic String containing a
+selection of one or more likely causes of failure.
+
+## Examples
+
+```julia
+julia> diagnose( JSON.parse("{ \"foo\": true }"), myschema)
+nothing
+julia> diagnose( JSON.parse("{ \"bar\": 12.5 }"), myschema)
+"in [] : required property 'foo' missing"
+```
+"""
+function diagnose(x, s::Schema)
+    hyps = JSONSchema.validate(x, s)
+    (hyps == nothing) && return nothing
+
+    hyps2 = flatten(hyps)
+
+    # The selection heuristic is to keep only the issues appearing deeper in
+    # the tree. This will trim out the 'oneOf' assertions that were not
+    # intended in the first place in 'x' (hopefully).
+    lmax = maximum(e -> length(e.path), hyps2)
+    filter!(e -> length(e.path) == lmax, hyps2)
+
+    if length(hyps2) == 1
+        return singleissuerecap(hyps2[1])
+    else
+        msg = ["One of :";
+               map(x -> "  - " * singleissuerecap(x), hyps2) ]
+        return join(msg, "\n")
+    end
+    nothing
 end

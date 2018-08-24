@@ -14,10 +14,10 @@ unzipdir = joinpath(destdir, "test-suite")
 BinaryProvider.unpack(dwnldfn, unzipdir)
 
 ################################################################################
-### Applying test suites for draft 4/6/7 specifications                      ###
+### Applying test suites for draft 4/6 specifications                        ###
 ################################################################################
 
-@testset "Test suite for $draftfn" for draftfn in ["draft4", "draft6", "draft7"]
+@testset "Test suite for $draftfn" for draftfn in ["draft4", "draft6"]
     tsdir = joinpath(unzipdir, "JSON-Schema-Test-Suite-master/tests", draftfn)
 
     # the test suites use the 'remotes' folder to simulate remote refs with the

@@ -153,6 +153,45 @@ end
 #  Schema struct definition
 ################################################################################
 
+# myschema = Schema("""
+#    {
+#       "properties": {
+#          "foo": {},
+#          "bar": {}
+#       },
+#       "required": ["foo"]
+#    }
+#   """)
+# "{ \\"properties\\": { \\"foo\\": {}, \\"bar\\": {}}, \\"required\\": [\\"foo\\"] }"
+
+"""
+`Schema(sch::String)`
+
+Create a schema for document validation. `sch` should be a String containing a
+valid JSON.
+
+`Schema(sch::Dict)`
+
+Create a schema but with `sch` being a parsed JSON created with `JSON.parse()` or
+`JSON.parsefile()`.
+
+## Example
+
+```julia
+julia> myschema = Schema("
+  {
+    \"properties\": {
+      \"foo\": {},
+      \"bar\": {}
+    },
+    \"required\": [\"foo\"]
+  }
+  ")
+
+julia> sch = JSON.parsefile(filepath)
+julia> myschema = Schema(sch)
+```
+"""
 struct Schema
   data::Union{Dict{String, Any}, Bool}
 
