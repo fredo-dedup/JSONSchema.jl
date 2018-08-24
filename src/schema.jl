@@ -153,17 +153,6 @@ end
 #  Schema struct definition
 ################################################################################
 
-# myschema = Schema("""
-#    {
-#       "properties": {
-#          "foo": {},
-#          "bar": {}
-#       },
-#       "required": ["foo"]
-#    }
-#   """)
-# "{ \\"properties\\": { \\"foo\\": {}, \\"bar\\": {}}, \\"required\\": [\\"foo\\"] }"
-
 """
 `Schema(sch::String)`
 

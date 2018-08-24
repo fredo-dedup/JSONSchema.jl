@@ -302,7 +302,8 @@ function validate(x, asserts::Dict, path=String[])
   end
 
   @doassert asserts "const" begin
-    (x == keyval) || @report x path "expected to be equal to $keyval"
+    expected = keyval==nothing ? "'nothing'" : keyval
+    (x == keyval) || @report x path "expected to be equal to $expected"
   end
 
   if isa(x, Array)
