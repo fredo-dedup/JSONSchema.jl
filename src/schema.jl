@@ -105,7 +105,8 @@ function getremoteschema(uri::HTTP.URI)
   Schema(JSON.parse(String(r.body))) # process remote ref
 end
 
-function findref(id0, idmap, path::String)
+
+function findref(id0, idmap, path::String, parentFileDirectory::String)
   # path refers to root
   (path in ["", "#"]) && return idmap[string(id0)]
 
@@ -116,19 +117,32 @@ function findref(id0, idmap, path::String)
   # path is a URI
   uri = updateid(id0, path) # fullRefURI(HTTP.URI(path), id0)
   uri2 = rmfragment(uri) # without JPointer
+  
+  isFileUri = startswith(uri2.scheme, "file") || isempty(uri2.scheme)
+  # normalize a file path to an absolute path so creating a key is consistent
+  if isFileUri
+    if !isabspath(uri2.path)
+      uri2 = HTTP.URIs.merge(uri2; path = abspath(joinpath(parentFileDirectory, uri2.path)))
+    end
+  end
 
   if !haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
-    @info("fetching $uri2")
-    idmap[string(uri2)] = getremoteschema(uri2).data
+    if startswith(uri2.scheme, "http")
+      @info("fetching remote ref $(uri2)")
+      idmap[string(uri2)] = getremoteschema(uri2).data
+    elseif isFileUri
+      @info("loading local ref $(uri2)")
+      idmap[string(uri2)] = Schema(JSON.parsefile(uri2.path); parentFileDirectory = dirname(uri2.path)).data
+    end
   end
 
   findelement(idmap[string(uri2)], uri.fragment)
 end
 
 # finds recursively all "$ref" and resolve their path
-resolverefs!(s, id0, idmap) = nothing
-resolverefs!(s::Vector, id0, idmap) = foreach(e -> resolverefs!(e, id0, idmap), s)
-function resolverefs!(s::Dict, id0, idmap)
+resolverefs!(s, id0, idmap, parentFileDirectory) = nothing
+resolverefs!(s::Vector, id0, idmap, parentFileDirectory) = foreach(e -> resolverefs!(e, id0, idmap, parentFileDirectory), s)
+function resolverefs!(s::Dict, id0, idmap, parentFileDirectory::String)
   if haskey(s, "id") && isa(s["id"], String) # draft 04
     id0 = updateid(id0, s["id"])
   elseif haskey(s, "\$id") && isa(s["\$id"], String) # draft 06+
@@ -140,9 +154,9 @@ function resolverefs!(s::Dict, id0, idmap)
       # This ref has not been resolved yet (otherwise it would not be a String)
       # We will replace the path string with the schema element pointed at, thus marking it as
       # resolved. This should prevent infinite recursions caused by self referencing
-      s["\$ref"] = findref(id0, idmap, v)
+      s["\$ref"] = findref(id0, idmap, v, parentFileDirectory)
     else
-      resolverefs!(v, id0, idmap)
+      resolverefs!(v, id0, idmap, parentFileDirectory)
     end
   end
 end
@@ -188,11 +202,11 @@ struct Schema
     new(spec0)
   end
 
-  function Schema(sp::String; idmap0=Dict{String, Any}())
-    Schema(JSON.parse(sp), idmap0=idmap0)
+  function Schema(sp::String; idmap0=Dict{String, Any}(), parentFileDirectory::String)
+    Schema(JSON.parse(sp), idmap0=idmap0, parentFileDirectory=parentFileDirectory)
   end
 
-  function Schema(spec0::Dict; idmap0=Dict{String, Any}())
+  function Schema(spec0::Dict; idmap0=Dict{String, Any}(), parentFileDirectory::String = abspath("."))
     spec  = deepcopy(spec0)
     idmap = deepcopy(idmap0)
 
@@ -202,7 +216,7 @@ struct Schema
     mkidmap!(idmap, spec, id0)
 
     # resolve all refs to the corresponding schema elements
-    resolverefs!(spec, id0, idmap)
+    resolverefs!(spec, id0, idmap, parentFileDirectory)
 
     new(spec)
   end
