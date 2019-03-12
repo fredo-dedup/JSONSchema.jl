@@ -61,7 +61,7 @@ function writeLocalReferenceTestFiles()
             "type": "object",
             "properties": {
                 "result1": { "\$ref": "file:../$(basename(abspath(referenceComponentsDirectory)))/localReferenceSchemaOne.json#/properties/localRefOneResult" },
-                "result2": { "\$ref": "file:../$(basename(abspath(referenceComponentsDirectory)))/localReferenceSchemaTwo.json#/properties/localRefTwoResult" }
+                "result2": { "\$ref": "../$(basename(abspath(referenceComponentsDirectory)))/localReferenceSchemaTwo.json#/properties/localRefTwoResult" }
             },
             "oneOf": [
                 {
