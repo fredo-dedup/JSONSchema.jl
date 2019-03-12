@@ -49,7 +49,7 @@ function updateid(id0::HTTP.URI, s::String)
   if id2.path != ""  # replace path of id0
     oldpath = match(r"^(.*/).*$", id0.path)
     if oldpath == nothing
-      els[:path] = "/" * id2.path
+      els[:path] = id2.path
     else
       els[:path] = oldpath.captures[1] * id2.path
     end
@@ -117,7 +117,7 @@ function findref(id0, idmap, path::String, parentFileDirectory::String)
   # path is a URI
   uri = updateid(id0, path) # fullRefURI(HTTP.URI(path), id0)
   uri2 = rmfragment(uri) # without JPointer
-  
+
   isFileUri = startswith(uri2.scheme, "file") || isempty(uri2.scheme)
   # normalize a file path to an absolute path so creating a key is consistent
   if isFileUri
