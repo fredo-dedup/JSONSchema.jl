@@ -202,7 +202,7 @@ struct Schema
     new(spec0)
   end
 
-  function Schema(sp::String; idmap0=Dict{String, Any}(), parentFileDirectory::String)
+  function Schema(sp::String; idmap0=Dict{String, Any}(), parentFileDirectory::String = abspath("."))
     Schema(JSON.parse(sp), idmap0=idmap0, parentFileDirectory=parentFileDirectory)
   end
 
