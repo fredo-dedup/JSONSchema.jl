@@ -30,14 +30,23 @@ struct OneOfIssue <: AbstractIssue # validation issue reporting structure
   issues::Vector{<:AbstractIssue} # potential issues, collectively making the present issue
 end
 
+# Note: Julia treats Bool <: Integer <: Real, but JSONSchema treats Bools at not
+# numbers. This causes a lot of confusion :(.
+is_json_number(::Real) = true
+is_json_number(::Bool) = false
+is_json_number(::Any) = false
+is_json_integer(::Integer) = true
+is_json_integer(::Bool) = false
+is_json_integer(::Any) = false
+
 ### type assertion
 function type_asserts(x, typ::String, path)
   if typ == "string"
     x isa String || @report x path "is not a string"
   elseif typ == "number"
-    (x isa Int) || (x isa Float64) || @report x path "is not a number"
+    is_json_number(x) || @report x path "is not a number"
   elseif typ == "integer"
-    x isa Int || @report x path "is not an integer"
+    is_json_integer(x) || @report x path "is not an integer"
   elseif typ == "array"
     x isa Array || @report x path "is not an array"
   elseif typ == "boolean"
@@ -316,7 +325,7 @@ function validate(x, asserts::Dict, path=String[])
     (ret==nothing) || return ret
   end
 
-  if (x isa Int) || (x isa Float64)  # a 'number' for JSON
+  if is_json_number(x)
     ret = number_asserts(x, asserts, path)
     (ret==nothing) || return ret
   end
