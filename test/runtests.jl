@@ -1,10 +1,9 @@
-using JSONSchema, JSON
 import BinaryProvider
-
+using JSONSchema
+using JSON
 using Test
 
-### load the "json-schema-org/JSON-Schema-Test-Suite" project from github
-tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/master.tar.gz"
+tsurl = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/2.0.0.tar.gz"
 
 destdir = mktempdir()
 dwnldfn = joinpath(destdir, "test-suite.tar.gz")
@@ -13,14 +12,14 @@ BinaryProvider.download(tsurl, dwnldfn, verbose=true)
 unzipdir = joinpath(destdir, "test-suite")
 BinaryProvider.unpack(dwnldfn, unzipdir)
 
-jsonTestFilesDirectory = joinpath(unzipdir, "JSON-Schema-Test-Suite-master", "tests")
+jsonTestFilesDirectory = joinpath(unzipdir, "JSON-Schema-Test-Suite-2.0.0", "tests")
 localReferenceTestsDirectory = mktempdir(jsonTestFilesDirectory)
-
 
 """
 Write test files for locally referenced schema files.
-These files have the same format as JSON Schema org test files. They are written 
-to a sibling directory to JSON-Schema-Test-Suite-master/tests/draft* directories 
+
+    These files have the same format as JSON Schema org test files. They are written
+to a sibling directory to JSON-Schema-Test-Suite-master/tests/draft* directories
 so they can be consumed the same way as the draft*/*.json test files.
 """
 function writeLocalReferenceTestFiles()
@@ -35,7 +34,7 @@ function writeLocalReferenceTestFiles()
         }
     }
     """)
-    
+
     write(joinpath(referenceComponentsDirectory, "localReferenceSchemaTwo.json"), """
     {
         "type": "object",
@@ -44,7 +43,7 @@ function writeLocalReferenceTestFiles()
         }
     }
     """)
-    
+
     write(joinpath(referenceComponentsDirectory, "nestedLocalReference.json"), """
     {
         "type": "object",
@@ -53,7 +52,7 @@ function writeLocalReferenceTestFiles()
         }
     }
     """)
-    
+
     write(joinpath(localReferenceTestsDirectory, "localReferenceTest.json"), """[
     {
         "description": "test locally referenced schemas",
@@ -101,7 +100,7 @@ function writeLocalReferenceTestFiles()
         ]
     }
     ]""")
-    
+
     write(joinpath(localReferenceTestsDirectory, "nestedLocalReferenceTest.json"), """[
     {
         "description": "test locally referenced schemas",
@@ -126,7 +125,7 @@ function writeLocalReferenceTestFiles()
     }
     ]""")
     # return directory name (not path) of tests for use in testing below
-    return 
+    return
 end
 
 
@@ -155,12 +154,12 @@ writeLocalReferenceTestFiles()
 
         @testset "$tfn" for tfn in filter(n -> occursin(r"\.json$",n), readdir(tsdir))
             fn = joinpath(tsdir, tfn)
-            schema = JSON.parsefile(fn)            
+            schema = JSON.parsefile(fn)
             @testset "- $(subschema["description"])" for subschema in (schema)
-                spec = subschema["schema"] isa Bool ? 
-                    Schema(subschema["schema"]; idmap0=idmap0) : 
+                spec = subschema["schema"] isa Bool ?
+                    Schema(subschema["schema"]; idmap0=idmap0) :
                     Schema(subschema["schema"]; idmap0=idmap0, parentFileDirectory = dirname(fn))
-                    
+
                 @testset "* $(subtest["description"])" for subtest in subschema["tests"]
                     @test isvalid(subtest["data"], spec) == subtest["valid"]
                 end
