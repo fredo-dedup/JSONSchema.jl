@@ -166,5 +166,15 @@ writeLocalReferenceTestFiles()
             end
         end
     end
+end
 
+@testset "is_json_xxx" begin
+    @test JSONSchema.is_json_number(1) == true
+    @test JSONSchema.is_json_number(1.0) == true
+    @test JSONSchema.is_json_number(true) == false
+    @test JSONSchema.is_json_number(:a) == false
+    @test JSONSchema.is_json_integer(1) == true
+    @test JSONSchema.is_json_integer(1.0) == false
+    @test JSONSchema.is_json_integer(true) == false
+    @test JSONSchema.is_json_integer(:a) == false
 end
