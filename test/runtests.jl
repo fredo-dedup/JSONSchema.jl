@@ -161,22 +161,39 @@ writeLocalReferenceTestFiles()
                     Schema(subschema["schema"]; idmap0=idmap0, parentFileDirectory = dirname(fn))
 
                 @testset "* $(subtest["description"])" for subtest in subschema["tests"]
-                    @test isvalid(subtest["data"], spec) == subtest["valid"]
+                    result = isvalid(subtest["data"], spec) == subtest["valid"]
+                    @test result
+                    if !result
+                        @show subtest, spec.data
+                    end
                 end
             end
         end
     end
 end
 
-@testset "is_json_xxx" begin
-    @test JSONSchema.is_json_number(1) == true
-    @test JSONSchema.is_json_number(1.0) == true
-    @test JSONSchema.is_json_number(true) == false
-    @test JSONSchema.is_json_number(:a) == false
-    @test JSONSchema.is_json_integer(1) == true
-    @test JSONSchema.is_json_integer(1.0) == false
-    @test JSONSchema.is_json_integer(true) == false
-    @test JSONSchema.is_json_integer(:a) == false
+@testset "" begin
+    schema = Schema(
+        Dict(
+            "properties" => Dict(
+                "foo" => Dict(),
+                "bar" => Dict()
+            ),
+            "required" => ["foo"]
+        )
+    )
+    data_pass = Dict("foo" => true)
+    data_fail = Dict("bar" => 12.5)
+    @test JSONSchema.validate(data_pass, schema; diagnose = true) === nothing
+    ret = JSONSchema.validate(data_fail, schema; diagnose = true)
+    @test ret !== nothing
+    @test sprint(show, ret) == """Validation failed:
+    path:         top-level
+    instance:     $(data_fail)
+    schema key:   required
+    schema value: ["foo"]
+    """
+    @test diagnose(data_fail, schema) === nothing
 end
 
 @testset "Schemas" begin

@@ -1,458 +1,467 @@
-####################################################################
-#  JSON validation
-####################################################################
-
-macro doassert(asserts::Symbol, key::String, block::Expr)
-  quote
-    if haskey($(esc(asserts)), $key)
-      $(esc(:( keyval = ($asserts)[$key]) ))
-      $(esc(block))
-    end
-  end
+struct SingleIssue
+    x
+    path::String
+    reason::String
+    val
 end
 
-macro report(what, wher, msg)
-  quote
-    return SingleIssue($(esc(what)), $(esc(wher)), $(esc(msg)))
-  end
+function Base.show(io::IO, issue::SingleIssue)
+    println(io, """Validation failed:
+    path:         $(isempty(issue.path) ? "top-level" : issue.path)
+    instance:     $(issue.x)
+    schema key:   $(issue.reason)
+    schema value: $(issue.val)""")
 end
-
-abstract type AbstractIssue end
-
-struct SingleIssue <: AbstractIssue  # validation issue reporting structure
-  x                     # subJSON with validation issue
-  path::Vector{String}  # JSPointer to x
-  msg::String           # error message
-end
-
-struct OneOfIssue <: AbstractIssue # validation issue reporting structure
-  path::Vector{String}  # JSPointer to x
-  issues::Vector{<:AbstractIssue} # potential issues, collectively making the present issue
-end
-
-# Note: Julia treats Bool <: Integer <: Real, but JSONSchema treats Bools at not
-# numbers. This causes a lot of confusion :(.
-is_json_number(::Real) = true
-is_json_number(::Bool) = false
-is_json_number(::Any) = false
-is_json_integer(::Integer) = true
-is_json_integer(::Bool) = false
-is_json_integer(::Any) = false
-
-### type assertion
-function type_asserts(x, typ::String, path)
-  if typ == "string"
-    x isa String || @report x path "is not a string"
-  elseif typ == "number"
-    is_json_number(x) || @report x path "is not a number"
-  elseif typ == "integer"
-    is_json_integer(x) || @report x path "is not an integer"
-  elseif typ == "array"
-    x isa Array || @report x path "is not an array"
-  elseif typ == "boolean"
-    x isa Bool || @report x path "is not a boolean"
-  elseif typ == "object"
-    x isa Dict || @report x path "is not an object"
-  elseif typ == "null"
-    (x == nothing) || @report x path "is not null"
-  end
-  nothing
-end
-
-### check for assertions applicable to arrays
-function array_asserts(x, asserts, path)
-  @doassert asserts "items" begin
-    if (keyval isa Bool) && ! keyval
-      (length(x) > 0) && @report x path "schema (=false) does not allow non-empty arrays"
-
-    elseif keyval isa Dict
-      for i in 1:length(x)
-        ret = validate(x[i], keyval, [path; "$(i-1)"])
-        (ret==nothing) || return ret
-      end
-
-    elseif keyval isa Array
-      for (i, iti) in enumerate(keyval)
-        i > length(x) && break
-        ret = validate(x[i], iti, [path; "$(i-1)"])
-        (ret==nothing) || return ret
-      end
-
-      if haskey(asserts, "additionalItems") && (length(keyval) < length(x))
-        addit = asserts["additionalItems"]
-        if addit isa Bool
-          (addit == false) &&  @report x path "additional items not allowed"
-        else
-          for i in length(keyval)+1:length(x)
-            ret = validate(x[i], addit, [path; "$(i-1)"])
-            (ret==nothing) || return ret
-          end
-        end
-      end
-    end
-  end
-
-  @doassert asserts "maxItems" begin
-    (length(x) <= keyval) ||
-      @report x path "array longer than $keyval"
-  end
-
-  @doassert asserts "minItems" begin
-    (length(x) >= keyval) ||
-      @report x path "array shorter than $keyval"
-  end
-
-  @doassert asserts "uniqueItems" begin
-    if keyval
-      xt = [(xx, typeof(xx)) for xx in x]
-      (length(unique(hash.(xt))) == length(x)) ||
-        @report x path "non unique elements"
-    end
-  end
-
-  @doassert asserts "contains" begin
-    is = AbstractIssue[]
-    oneOK = false
-    for (i,el) in enumerate(x)
-      ret = validate(el, keyval, [path; "$(i-1)"])
-      (ret==nothing) && (oneOK = true; break)
-      push!(is, ret)
-    end
-    oneOK || return OneOfIssue(path, is)
-  end
-
-  nothing
-end
-
-### check for assertions applicable to numbers
-function number_asserts(x, asserts, path)
-  @doassert asserts "multipleOf" begin
-    δ = abs(x - keyval*round(x / keyval))
-    (δ < eps(Float64)) || @report x path "not a multipleOf of $keyval"
-  end
-
-  @doassert asserts "maximum" begin
-    (x <= keyval) || @report x path "not <= $keyval"
-  end
-
-  @doassert asserts "exclusiveMaximum" begin
-    if (keyval isa Bool) && haskey(asserts, "maximum")  # draft 4
-      val2 = asserts["maximum"]
-      if keyval
-        (x < val2) || @report x path "not < $val2"
-      else
-        (x <= val2) || @report x path "not <= $val2"
-      end
-    elseif keyval isa Number  # draft 6
-      (x < keyval) || @report x path "not < $keyval"
-    end
-  end
-
-  @doassert asserts "minimum" begin
-    (x >= keyval) || @report x path "not >= $keyval"
-  end
-
-  @doassert asserts "exclusiveMinimum" begin
-    if (keyval isa Bool) && haskey(asserts, "minimum")  # draft 4
-      val2 = asserts["minimum"]
-      if keyval
-        (x > val2) || @report x path "not > $val2"
-      else
-        (x >= val2) || @report x path "not >= $val2"
-      end
-    elseif keyval isa Number
-      (x > keyval) || @report x path "not > $keyval"
-    end
-  end
-
-  nothing
-end
-
-### check for assertions applicable to strings
-function string_asserts(x, asserts, path)
-  @doassert asserts "maxLength" begin
-    (length(x) > keyval) && @report x path "string longer than $keyval characters"
-  end
-
-  @doassert asserts "minLength" begin
-    (length(x) < keyval) && @report x path "string shorter than $keyval characters"
-  end
-
-  @doassert asserts "pattern" begin
-    occursin(Regex(keyval), x) || @report x path "string does not match pattern $keyval"
-  end
-
-  nothing
-end
-
-### check for assertions applicable to objects
-function object_asserts(x, asserts, path)
-  if haskey(asserts, "dependencies")
-    dep = asserts["dependencies"]
-    for (k,v) in dep
-      if haskey(x, k)
-        if (v isa Dict) || (v isa Bool)
-          ret = validate(x, v, path)
-          (ret == nothing) || return ret
-        else
-          for rk in v
-            haskey(x, rk) || @report x path "required property '$rk' missing (dependency $k)"
-          end
-        end
-      end
-    end
-  end
-
-  @doassert asserts "propertyNames" begin
-    if isa(keyval, Bool)
-      if ! keyval
-        (length(x) > 0) && @report x path "schema (=false) allows only empty objects here"
-      end
-    else
-      for propname in keys(x)
-        ret = string_asserts(propname, keyval , path)
-        (ret==nothing) || return ret
-      end
-    end
-  end
-
-  @doassert asserts "maxProperties" begin
-    (length(x) <= keyval) || @report x path "nb of properties > $keyval"
-  end
-
-  @doassert asserts "minProperties" begin
-    (length(x) >= keyval) || @report x path "nb of properties < $keyval"
-  end
-
-  remainingprops = collect(keys(x))
-  @doassert asserts "required" begin
-    for k in keyval
-      (k in remainingprops) || @report x path "required property '$k' missing"
-    end
-  end
-
-  matchedprops = String[]
-  if haskey(asserts, "patternProperties") && length(remainingprops) > 0
-    patprop = asserts["patternProperties"]
-    for k in remainingprops
-      hasmatch = false
-      for (rk, rtest) in patprop
-        if occursin(Regex(rk), k)
-          hasmatch = true
-          ret = validate(x[k], rtest, [path; k])
-          (ret == nothing) || return ret
-          # "property $k matches pattern $rk but is not a $rtest"
-        end
-      end
-      hasmatch && push!(matchedprops, k)
-    end
-  end
-
-  if haskey(asserts, "properties")
-    prop = asserts["properties"]
-    for k in intersect(remainingprops, keys(prop))
-      ret = validate(x[k], prop[k], [path; k])
-      (ret == nothing) || return ret
-      push!(matchedprops, k)
-    end
-  end
-
-  remainingprops = setdiff(remainingprops, matchedprops)
-  if haskey(asserts, "additionalProperties") && length(remainingprops) > 0
-    addprop = asserts["additionalProperties"]
-    if addprop isa Bool
-      rpstr = join([ "`$p`" for p in remainingprops], ", ", " & ")
-      (addprop == false) && @report x path "additional property(ies) $rpstr not allowed"
-    else
-      for k in remainingprops
-        ret = validate(x[k], addprop, [path; k])
-        (ret == nothing) || return ret
-      end
-    end
-  end
-
-  nothing
-end
-
-
-# s = spec
-# for cases where there is no schema but a true/false (in allOf, etc..)
-function validate(x, s::Bool, path=String[])
-  s || @report x path "schema (=false) does not allow any value here"
-  nothing
-end
-
-
-validate(x, s::Schema, path=String[]) = validate(x, s.data, path)
-function validate(x, asserts::Dict, path=String[])
-  # if a ref is present, it should supersede all sibling properties
-  refhistory = Any[asserts];
-  while isa(asserts, Dict) && haskey(asserts, "\$ref") # resolve nested refs until an end is found
-    asserts = asserts["\$ref"]
-    (asserts in refhistory) && error("circular references in schema")
-    push!(refhistory, asserts)
-  end
-  isa(asserts, Bool) && return validate(x, asserts, path) # in case ref turns out to be a boolean
-
-
-  @doassert asserts "type" begin
-    if keyval isa Array
-      any( type_asserts(x, typ2, path)==nothing for typ2 in keyval ) ||
-        @report x path "is not any of the allowed types $keyval"
-    else
-      ret = type_asserts(x, keyval, path)
-      (ret==nothing) || return ret
-    end
-  end
-
-  @doassert asserts "enum" begin
-    any(x == e for e in keyval) ||
-      @report x path "expected to be one of $keyval"
-  end
-
-  @doassert asserts "const" begin
-    expected = keyval==nothing ? "'nothing'" : keyval
-    (x == keyval) || @report x path "expected to be equal to $expected"
-  end
-
-  if isa(x, Array)
-    ret = array_asserts(x, asserts, path)
-    (ret==nothing) || return ret
-  end
-
-  if isa(x, Dict)
-    ret = object_asserts(x, asserts, path)
-    (ret==nothing) || return ret
-  end
-
-  if is_json_number(x)
-    ret = number_asserts(x, asserts, path)
-    (ret==nothing) || return ret
-  end
-
-  if x isa String
-    ret = string_asserts(x, asserts, path)
-    (ret==nothing) || return ret
-  end
-
-  @doassert asserts "allOf" begin
-    for subsch in keyval
-      ret = validate(x, subsch, path)
-      (ret==nothing) || return ret
-    end
-  end
-
-  @doassert asserts "anyOf" begin
-    is = AbstractIssue[]
-    oneOK = false
-    for subsch in keyval
-      ret = validate(x, subsch, path)
-      (ret==nothing) && (oneOK = true; break)
-      push!(is, ret)
-    end
-    oneOK || return OneOfIssue(path, is)
-  end
-
-  @doassert asserts "oneOf" begin
-    is = AbstractIssue[]
-    oneOK, moreOK = false, false
-    for subsch in keyval
-      ret = validate(x, subsch, path)
-      if ret==nothing
-        oneOK && (moreOK = true)
-        oneOK = true
-      else
-        push!(is, ret)
-      end
-    end
-    oneOK || return OneOfIssue(path, is)
-    # TODO : improve reporting if more than one matches
-    moreOK && @report x path "more than one match in a 'oneOf' clause"
-  end
-
-  @doassert asserts "not" begin
-    ret = validate(x, keyval, path)
-    (ret==nothing) && @report x path "does not satisfy 'not' assertion $keyval"
-  end
-
-  nothing
-end
-
-
-
-##############   user facing functions #########################
 
 """
-`isvalid(x, s::Schema)`
+    validate(x, s::Schema; diagnose::Bool = false)
 
-Check that a document `x` is valid against the Schema `s`.
+Validate document `x` is valid against the Schema `s`. If valid, return `nothing`, else
+return a `SingleIssue`.
+
+If `diagnose`, print a human-readable string saying why the validation failed.
 
 ## Examples
+    julia> schema = Schema(
+               Dict(
+                   "properties" => Dict(
+                       "foo" => Dict(),
+                       "bar" => Dict()
+                   ),
+                   "required" => ["foo"]
+               )
+           )
+    Schema
 
-```julia
-julia> myschema = Schema("
-  {
-    \"properties\": {
-      \"foo\": {},
-      \"bar\": {}
-    },
-    \"required\": [\"foo\"]
-  }
-  ")
+    julia> data_pass = Dict("foo" => true)
+    Dict{String,Bool} with 1 entry:
+      "foo" => true
 
-julia> isvalid( JSON.parse("{ \"foo\": true }"), myschema)
-true
-julia> isvalid( JSON.parse("{ \"bar\": 12.5 }"), myschema)
-false
-```
+    julia> data_fail = Dict("bar" => 12.5)
+    Dict{String,Float64} with 1 entry:
+      "bar" => 12.5
+
+    julia> validate(data_pass, schema; diagnose = true)
+
+    julia> validate(data_fail, schema; diagnose = true)
+    Validation failed:
+    path:         top-level
+    instance:     Dict("bar"=>12.5)
+    schema key:   required
+    schema value: ["foo"]
 """
-function isvalid(x, s::Schema)
-  validate(x, s.data) == nothing
-end
-
-
-
-flatten(ofi::JSONSchema.OneOfIssue) = vcat([flatten(i) for i in ofi.issues]...)
-flatten(si::JSONSchema.SingleIssue) = [si;]
-
-singleissuerecap(si::JSONSchema.SingleIssue) =
-    "in [$(join(si.path, '.'))] : $(si.msg)"
-
-
-"""
-`diagnose(x, s::Schema)`
-
-Check that a document `x` is valid against the Schema `s`. If
-valid return `nothing`, and if not, return a diagnostic String containing a
-selection of one or more likely causes of failure.
-
-## Examples
-
-```julia
-julia> diagnose( JSON.parse("{ \"foo\": true }"), myschema)
-nothing
-julia> diagnose( JSON.parse("{ \"bar\": 12.5 }"), myschema)
-"in [] : required property 'foo' missing"
-```
-"""
-function diagnose(x, s::Schema)
-    hyps = JSONSchema.validate(x, s)
-    (hyps == nothing) && return nothing
-
-    hyps2 = flatten(hyps)
-
-    # The selection heuristic is to keep only the issues appearing deeper in
-    # the tree. This will trim out the 'oneOf' assertions that were not
-    # intended in the first place in 'x' (hopefully).
-    lmax = maximum(e -> length(e.path), hyps2)
-    filter!(e -> length(e.path) == lmax, hyps2)
-
-    if length(hyps2) == 1
-        return singleissuerecap(hyps2[1])
-    else
-        msg = ["One of :";
-               map(x -> "  - " * singleissuerecap(x), hyps2) ]
-        return join(msg, "\n")
+function validate(x, schema::Schema; diagnose::Bool = false)
+    ret = validate(x, schema.data, "")
+    if diagnose
+        println(ret === nothing ? "Validation succeeded" : ret)
     end
-    nothing
+    return ret
 end
+
+Base.isvalid(x, schema::Schema) = validate(x, schema; diagnose = false) === nothing
+
+function validate(x, schema, path::String)
+    schema = resolve_refs(schema)
+    return _validate(x, schema, path)
+end
+
+function _validate(x, schema::Dict, path)
+    for (k, v) in schema
+        ret = validate(x, schema, Val{Symbol(k)}(), v, path)
+        if ret !== nothing
+            return ret
+        end
+    end
+    return
+end
+
+function _validate(x, schema::Bool, path::String)
+    return schema ? nothing : SingleIssue(x, path, "schema", schema)
+end
+
+function resolve_refs(schema::Dict, explored_refs = Any[schema])
+    if !haskey(schema, "\$ref")
+        return schema
+    end
+    schema = schema["\$ref"]
+    if schema in explored_refs
+        error("Cannot support circular references in schema.")
+    end
+    push!(explored_refs, schema)
+    return resolve_refs(schema, explored_refs)
+end
+resolve_refs(schema, explored_refs = Any[]) = schema
+
+# Default fallback
+validate(::Any, ::Any, ::Val, ::Any, ::String) = nothing
+
+###
+### Core JSON Schema
+###
+
+# 9.2.1.1
+function validate(x, schema, ::Val{:allOf}, val::Vector, path::String)
+    for v in val
+        ret = validate(x, v, path)
+        if ret !== nothing
+            return ret
+        end
+    end
+    return
+end
+
+# 9.2.1.2
+function validate(x, schema, ::Val{:anyOf}, val::Vector, path::String)
+    matched = false
+    for v in val
+        ret = validate(x, v, path)
+        if ret === nothing
+            matched = true
+        end
+    end
+    return !matched ? SingleIssue(x, path, "anyOf", val) : nothing
+end
+
+# 9.2.1.3
+function validate(x, schema, ::Val{:oneOf}, val::Vector, path::String)
+    matched = 0
+    for v in val
+        ret = validate(x, v, path)
+        if ret === nothing
+            matched += 1
+        end
+    end
+    return matched != 1 ? SingleIssue(x, path, "oneOf", val) : nothing
+end
+
+# 9.2.1.4
+function validate(x, schema, ::Val{:not}, val, path::String)
+    ret = validate(x, val, path)
+    return ret === nothing ? SingleIssue(x, path, "not", val) : nothing
+end
+
+# 9.2.2.1: if
+
+# 9.2.2.2: then
+
+# 9.2.2.3: else
+
+###
+### Checks for Arrays.
+###
+
+# 9.3.1.1
+function validate(x::Vector, schema, ::Val{:items}, val::Dict, path::String)
+    items = fill(false, length(x))
+    for (i, xi) in enumerate(x)
+        ret = validate(xi, val, path * "[$(i)]")
+        if ret !== nothing
+            return ret
+        end
+        items[i] = true
+    end
+    additionalItems = get(schema, "additionalItems", nothing)
+    return _additional_items(x, schema, items, additionalItems, path)
+end
+
+function validate(x::Vector, schema, ::Val{:items}, val::Vector, path::String)
+    items = fill(false, length(x))
+    for (i, xi) in enumerate(x)
+        if i > length(val)
+            break
+        end
+        ret = validate(xi, val[i], path * "[$(i)]")
+        if ret !== nothing
+            return ret
+        end
+        items[i] = true
+    end
+    additionalItems = get(schema, "additionalItems", nothing)
+    return _additional_items(x, schema, items, additionalItems, path)
+end
+
+function validate(x::Vector, schema, ::Val{:items}, val::Bool, path::String)
+    return val || (!val && length(x) == 0) ? nothing : SingleIssue(x, path, "items", val)
+end
+
+function _additional_items(x, schema, items, val, path)
+    for i = 1:length(x)
+        if items[i]
+            continue  # Validated against 'items'.
+        end
+        ret = validate(x[i], val, path * "[$(i)]")
+        if ret !== nothing
+            return ret
+        end
+    end
+    return
+end
+
+function _additional_items(x, schema, items, val::Bool, path)
+    return !val && !all(items) ? SingleIssue(x, path, "additionalItems", val) : nothing
+end
+
+_additional_items(x, schema, items, val::Nothing, path) = nothing
+
+# 9.3.1.2
+function validate(x::Vector, schema, ::Val{:additionalItems}, val, path::String)
+    return  # Supported in `items`.
+end
+
+# 9.3.1.3: unevaluatedProperties
+
+# 9.3.1.4
+function validate(x::Vector, schema, ::Val{:contains}, val, path::String)
+    for (i, xi) in enumerate(x)
+        ret = validate(xi, val, path * "[$(i)]")
+        if ret === nothing
+            return
+        end
+    end
+    return SingleIssue(x, path, "contains", val)
+end
+
+###
+### Checks for Objects
+###
+
+# 9.3.2.1
+function validate(x::Dict, schema, ::Val{:properties}, val::Dict, path::String)
+    for (k, v) in x
+        if haskey(val, k)
+            ret = validate(v, val[k], path * "[$(k)]")
+            if ret !== nothing
+                return ret
+            end
+        end
+    end
+    return
+end
+
+# 9.3.2.2
+function validate(x::Dict, schema, ::Val{:patternProperties}, val::Dict, path::String)
+    for (k_val, v_val) in val
+        r = Regex(k_val)
+        for (k_x, v_x) in x
+            if match(r, k_x) === nothing
+                continue
+            end
+            ret = validate(v_x, v_val, path * "[$(k_x)")
+            if ret !== nothing
+                return ret
+            end
+        end
+    end
+    return
+end
+
+# 9.3.2.3
+function validate(x::Dict, schema, ::Val{:additionalProperties}, val::Dict, path::String)
+    properties = get(schema, "properties", Dict{String,Any}())
+    patternProperties = get(schema, "patternProperties", Dict{String,Any}())
+    for (k, v) in x
+        if k in keys(properties) || any(r -> match(Regex(r), k) !== nothing, keys(patternProperties))
+            continue
+        end
+        ret = validate(v, val, path * "[$(k)]")
+        if ret !== nothing
+            return ret
+        end
+    end
+    return
+end
+
+function validate(x::Dict, schema, ::Val{:additionalProperties}, val::Bool, path::String)
+    if val
+        return
+    end
+    properties = get(schema, "properties", Dict{String,Any}())
+    patternProperties = get(schema, "patternProperties", Dict{String,Any}())
+    for (k, v) in x
+        if k in keys(properties) || any(r -> match(Regex(r), k) !== nothing, keys(patternProperties))
+            continue
+        end
+        return SingleIssue(x, path, "additionalProperties", val)
+    end
+    return
+end
+
+# 9.3.2.4: unevaluatedProperties
+
+# 9.3.2.5
+function validate(x::Dict, schema, ::Val{:propertyNames}, val, path::String)
+    for k in keys(x)
+        ret = validate(k, val, path)
+        if ret !== nothing
+            return ret
+        end
+    end
+    return
+end
+
+###
+### Checks for generic types.
+###
+
+# 6.1.1
+function validate(x, schema, ::Val{:type}, val::String, path::String)
+    return !_is_type(x, Val{Symbol(val)}()) ? SingleIssue(x, path, "type", val) : nothing
+end
+
+function validate(x, schema, ::Val{:type}, val::Vector, path::String)
+    if !any(v -> _is_type(x, Val{Symbol(v)}()), val)
+        return SingleIssue(x, path, "type", val)
+    end
+    return
+end
+
+_is_type(::Any, ::Val) = false
+_is_type(::Array, ::Val{:array}) = true
+_is_type(::Bool, ::Val{:boolean}) = true
+_is_type(::Integer, ::Val{:integer}) = true
+_is_type(::Real, ::Val{:number}) = true
+_is_type(::Nothing, ::Val{:null}) = true
+_is_type(::Dict, ::Val{:object}) = true
+_is_type(::String, ::Val{:string}) = true
+# Note that Julia treat's Bool <: Number, but JSON-Schema distinguishes them.
+_is_type(::Bool, ::Val{:number}) = false
+_is_type(::Bool, ::Val{:integer}) = false
+
+# 6.1.2
+function validate(x, schema, ::Val{:enum}, val, path::String)
+    return !any(x == v for v in val) ? SingleIssue(x, path, "enum", val) : nothing
+end
+
+# 6.1.3
+function validate(x, schema, ::Val{:const}, val, path::String)
+    return x != val ? SingleIssue(x, path, "const", val) : nothing
+end
+
+###
+### Checks for numbers.
+###
+
+# 6.2.1
+function validate(x::Number, schema, ::Val{:multipleOf}, val::Number, path::String)
+    y = isapprox(x / val, round(x / val))
+    return !y ? SingleIssue(x, path, "multipleOf", val) : nothing
+end
+
+# 6.2.2
+function validate(x::Number, schema, ::Val{:maximum}, val::Number, path::String)
+    return x > val ? SingleIssue(x, path, "maximum", val) : nothing
+end
+
+# 6.2.3
+function validate(x::Number, schema, ::Val{:exclusiveMaximum}, val::Number, path::String)
+    return x >= val ? SingleIssue(x, path, "exclusiveMaximum", val) : nothing
+end
+
+function validate(x::Number, schema, ::Val{:exclusiveMaximum}, val::Bool, path::String)
+    if !val
+        return
+    end
+    max = get(schema, "maximum", Inf)
+    return x >= max ? SingleIssue(x, path, "exclusiveMaximum", val) : nothing
+end
+
+# 6.2.4
+function validate(x::Number, schema, ::Val{:minimum}, val::Number, path::String)
+    return x < val ? SingleIssue(x, path, "minimum", val) : nothing
+end
+
+# 6.2.5
+function validate(x::Number, schema, ::Val{:exclusiveMinimum}, val::Number, path::String)
+    return x <= val ? SingleIssue(x, path, "exclusiveMinimum", val) : nothing
+end
+
+function validate(x::Number, schema, ::Val{:exclusiveMinimum}, val::Bool, path::String)
+    if !val
+        return
+    end
+    max = get(schema, "minimum", -Inf)
+    return x <= max ? SingleIssue(x, path, "exclusiveMinimum", val) : nothing
+end
+
+
+###
+### Checks for strings.
+###
+
+# 6.3.1
+function validate(x::String, schema, ::Val{:maxLength}, val::Integer, path::String)
+    return length(x) > val ? SingleIssue(x, path, "maxLength", val) : nothing
+end
+
+# 6.3.2
+function validate(x::String, schema, ::Val{:minLength}, val::Integer, path::String)
+    return length(x) < val ? SingleIssue(x, path, "minLength", val) : nothing
+end
+
+# 6.3.3
+function validate(x::String, schema, ::Val{:pattern}, val::String, path::String)
+    y = occursin(Regex(val), x)
+    return !y ? SingleIssue(x, path, "pattern", val) : nothing
+end
+
+###
+### Checks for arrays.
+###
+
+# 6.4.1
+function validate(x::Vector, schema, ::Val{:maxItems}, val::Integer, path::String)
+    return length(x) > val ? SingleIssue(x, path, "maxItems", val) : nothing
+end
+
+# 6.4.2
+function validate(x::Vector, schema, ::Val{:minItems}, val::Integer, path::String)
+    return length(x) < val ? SingleIssue(x, path, "minItems", val) : nothing
+end
+
+# 6.4.3
+function validate(x::Vector, schema, ::Val{:uniqueItems}, val::Bool, path::String)
+    # It isn't sufficient to just compare allunique on x, because Julia treats 0 == false,
+    # but JSON distinguishes them.
+    y = [(xx, typeof(xx)) for xx in x]
+    return val && !allunique(y) ? SingleIssue(x, path, "uniqueItems", val) : nothing
+end
+
+# 6.4.4: maxContains
+
+# 6.4.5: minContains
+
+###
+### Checks for objects.
+###
+
+# 6.5.1
+function validate(x::Dict, schema, ::Val{:maxProperties}, val::Integer, path::String)
+    return length(x) > val ? SingleIssue(x, path, "maxProperties", val) : nothing
+end
+
+# 6.5.2
+function validate(x::Dict, schema, ::Val{:minProperties}, val::Integer, path::String)
+    return length(x) < val ? SingleIssue(x, path, "minProperties", val) : nothing
+end
+
+# 6.5.3
+function validate(x::Dict, schema, ::Val{:required}, val::Vector, path::String)
+    return any(v -> !haskey(x, v), val) ? SingleIssue(x, path, "required", val) : nothing
+end
+
+# 6.5.4
+function validate(x::Dict, schema, ::Val{:dependencies}, val::Dict, path::String)
+    for (k, v) in val
+        if !haskey(x, k)
+            continue
+        elseif !_dependencies(x, path, v)
+            return SingleIssue(x, path, "dependencies", val)
+        end
+    end
+    return
+end
+
+function _dependencies(x::Dict, path::String, val::Union{Bool,Dict})
+    return validate(x, val, path) === nothing
+end
+_dependencies(x::Dict, path::String, val::Array) = all(v -> haskey(x, v), val)
