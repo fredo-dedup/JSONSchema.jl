@@ -178,3 +178,21 @@ end
     @test JSONSchema.is_json_integer(true) == false
     @test JSONSchema.is_json_integer(:a) == false
 end
+
+@testset "Schemas" begin
+    schema = Schema("""
+    {
+        \"properties\": {
+        \"foo\": {},
+        \"bar\": {}
+        },
+        \"required\": [\"foo\"]
+    }
+    """)
+    @test typeof(schema) == Schema
+    @test typeof(schema.data) == Dict{String,Any}
+
+    schema_2 = Schema(false)
+    @test typeof(schema_2) == Schema
+    @test typeof(schema_2.data) == Bool
+end
