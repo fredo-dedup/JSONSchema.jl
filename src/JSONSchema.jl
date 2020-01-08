@@ -11,11 +11,10 @@ include("validation.jl")
 export diagnose
 function diagnose(x, schema)
     Base.depwarn(
-        "`diagnose(x, schema)` is deprecated. Use `validate(x, schema)` " *
-        "instead.",
+        "`diagnose(x, schema)` is deprecated. Use `validate(x, schema)` instead.",
         :diagnose
     )
-    ret = validate(x, schema; diagnose = false)
+    ret = validate(x, schema)
     return ret === nothing ? nothing : sprint(show, ret)
 end
 

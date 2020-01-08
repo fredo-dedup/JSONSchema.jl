@@ -31,7 +31,7 @@ julia> my_schema = Schema("""{
 ```
 passing a dictionary with the same structure as a schema:
 ```julia
-julia> schema = Schema(
+julia> my_schema = Schema(
             Dict(
                 "properties" => Dict(
                     "foo" => Dict(),
@@ -47,20 +47,23 @@ julia> my_schema = Schema(filename)
 ```
 
 Check the validity of a given JSON instance by calling
-`validate` with the JSON instance `x` to be tested and the `schema`:
+`validate` with the JSON instance `x` to be tested and the `schema`. If the validation succeeds, `validate` returns `nothing`:
 ```julia
 julia> data_pass = Dict("foo" => true)
 Dict{String,Bool} with 1 entry:
-    "foo" => true
+  "foo" => true
 
+julia> validate(data_pass, my_schema)
+
+```
+
+If the validation fails, a struct is returned that, when printed, explains the reason for the failure:
+```julia
 julia> data_fail = Dict("bar" => 12.5)
 Dict{String,Float64} with 1 entry:
-    "bar" => 12.5
+  "bar" => 12.5
 
-julia> validate(data_pass, my_schema; diagnose = true)
-Validation succeeded
-
-julia> validate(data_fail, my_schema; diagnose = true)
+julia> validate(data_fail, my_schema)
 Validation failed:
 path:         top-level
 instance:     Dict("bar"=>12.5)
@@ -68,9 +71,4 @@ schema key:   required
 schema value: ["foo"]
 ```
 
-If the validatation is successful, `validate` returns `nothing`.
-
-Passing `diagnose = false` will suppress printing.
-
-As a short-hand for `validate(x, schema; diagnose = false) === nothing`,
-you can use `Base.isvalid(x, schema)`.
+As a short-hand for `validate(x, schema) === nothing`, use `Base.isvalid(x, schema)`.

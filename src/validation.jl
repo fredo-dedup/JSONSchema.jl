@@ -14,13 +14,11 @@ function Base.show(io::IO, issue::SingleIssue)
 end
 
 """
-    validate(x, s::Schema; diagnose::Bool = false)
+    validate(x, s::Schema)
 
 Validate document `x` is valid against the Schema `s`. If valid, return `nothing`, else
-return a `SingleIssue`.
-
-If `diagnose`, print a human-readable string saying why the validation failed, or if it
-succeeded.
+return a `SingleIssue`. When printed, the returned `SingleIssue` describes the reason why
+the validation failed.
 
 ## Examples
 
@@ -43,25 +41,20 @@ succeeded.
     Dict{String,Float64} with 1 entry:
       "bar" => 12.5
 
-    julia> validate(data_pass, schema; diagnose = true)
-    Validation succeeded
+    julia> validate(data_pass, schema)
 
-    julia> validate(data_fail, schema; diagnose = true)
+    julia> validate(data_fail, schema)
     Validation failed:
     path:         top-level
     instance:     Dict("bar"=>12.5)
     schema key:   required
     schema value: ["foo"]
 """
-function validate(x, schema::Schema; diagnose::Bool = false)
-    ret = _validate(x, schema.data, "")
-    if diagnose
-        println(ret === nothing ? "Validation succeeded" : ret)
-    end
-    return ret
+function validate(x, schema::Schema)
+    return _validate(x, schema.data, "")
 end
 
-Base.isvalid(x, schema::Schema) = validate(x, schema; diagnose = false) === nothing
+Base.isvalid(x, schema::Schema) = validate(x, schema) === nothing
 
 function _validate(x, schema, path::String)
     schema = _resolve_refs(schema)

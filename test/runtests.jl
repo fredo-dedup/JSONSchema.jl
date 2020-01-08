@@ -172,7 +172,7 @@ writeLocalReferenceTestFiles()
     end
 end
 
-@testset "" begin
+@testset "Validate and diagnose" begin
     schema = Schema(
         Dict(
             "properties" => Dict(
@@ -184,15 +184,15 @@ end
     )
     data_pass = Dict("foo" => true)
     data_fail = Dict("bar" => 12.5)
-    @test JSONSchema.validate(data_pass, schema; diagnose = true) === nothing
-    ret = JSONSchema.validate(data_fail, schema; diagnose = true)
-    @test ret !== nothing
+    @test JSONSchema.validate(data_pass, schema) === nothing
+    ret = JSONSchema.validate(data_fail, schema)
     fail_msg = """Validation failed:
     path:         top-level
     instance:     $(data_fail)
     schema key:   required
     schema value: ["foo"]
     """
+    @test ret !== nothing
     @test sprint(show, ret) == fail_msg
     @test diagnose(data_pass, schema) === nothing
     @test diagnose(data_fail, schema) == fail_msg
