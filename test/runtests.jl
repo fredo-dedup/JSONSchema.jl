@@ -187,13 +187,15 @@ end
     @test JSONSchema.validate(data_pass, schema; diagnose = true) === nothing
     ret = JSONSchema.validate(data_fail, schema; diagnose = true)
     @test ret !== nothing
-    @test sprint(show, ret) == """Validation failed:
+    fail_msg = """Validation failed:
     path:         top-level
     instance:     $(data_fail)
     schema key:   required
     schema value: ["foo"]
     """
-    @test diagnose(data_fail, schema) === nothing
+    @test sprint(show, ret) == fail_msg
+    @test diagnose(data_pass, schema) === nothing
+    @test diagnose(data_fail, schema) == fail_msg
 end
 
 @testset "Schemas" begin
