@@ -41,13 +41,13 @@ julia> my_schema = Schema(
             )
         )
 ```
-or by passing a filename to a JSON file containing the schema:
+or by passing a parsed JSON file containing the schema:
 ```julia
-julia> my_schema = Schema(filename)
+julia> my_schema = Schema(JSON.parsefile(filename))
 ```
 
-Check the validity of a given JSON instance by calling
-`validate` with the JSON instance `x` to be tested and the `schema`. If the validation succeeds, `validate` returns `nothing`:
+Check the validity of a given JSON instance by calling `validate` with the JSON instance `x`
+to be tested and the `schema`. If the validation succeeds, `validate` returns `nothing`:
 ```julia
 julia> data_pass = Dict("foo" => true)
 Dict{String,Bool} with 1 entry:
@@ -57,7 +57,8 @@ julia> validate(data_pass, my_schema)
 
 ```
 
-If the validation fails, a struct is returned that, when printed, explains the reason for the failure:
+If the validation fails, a struct is returned that, when printed, explains the reason for
+the failure:
 ```julia
 julia> data_fail = Dict("bar" => 12.5)
 Dict{String,Float64} with 1 entry:
