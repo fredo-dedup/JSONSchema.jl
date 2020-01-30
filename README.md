@@ -9,46 +9,67 @@ _JSON instance validation using JSON Schemas_
 
 ## Overview
 
-[JSONSchema.jl](https://github.com/fredo-dedup/JSONSchema.jl) is a JSON validation package for the [julia](https://julialang.org/) programming language. Given a validation Schema (see http://json-schema.org/specification.html) this package can verify if any JSON instance follows all the assertions defining a valid document.
+[JSONSchema.jl](https://github.com/fredo-dedup/JSONSchema.jl) is a JSON validation package
+for the [julia](https://julialang.org/) programming language. Given a [validation
+schema](http://json-schema.org/specification.html) this package can verify if any JSON
+instance meets all the assertions defining a valid document.
 
-This package has been validated with the test suite of the JSON Schema org (https://github.com/json-schema-org/JSON-Schema-Test-Suite) for draft v4 and v6.
-
+This package has been validated with the [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite)
+for draft v4 and v6.
 
 ## API
 
-First step is to create a `Schema` object :
+Create a `Schema` object by passing a string:
 ```julia
-# using a String as input
-myschema = Schema("""
- {
-    "properties": {
-       "foo": {},
-       "bar": {}
-    },
-    "required": ["foo"]
- }""")  
-
-# or using a pre-processed JSON as input, using the JSON package
-sch = JSON.parsefile(filepath)
-myschema = Schema(sch)
+julia> my_schema = Schema("""{
+            "properties": {
+                "foo": {},
+                "bar": {}
+            },
+            "required": ["foo"]
+        }""")
+```
+passing a dictionary with the same structure as a schema:
+```julia
+julia> my_schema = Schema(
+            Dict(
+                "properties" => Dict(
+                    "foo" => Dict(),
+                    "bar" => Dict()
+                ),
+                "required" => ["foo"]
+            )
+        )
+```
+or by passing a parsed JSON file containing the schema:
+```julia
+julia> my_schema = Schema(JSON.parsefile(filename))
 ```
 
-You can then check the validity of a given JSON instance by calling `isvalid`
-with the JSON instance to be tested and the `Schema`:
+Check the validity of a given JSON instance by calling `validate` with the JSON instance `x`
+to be tested and the `schema`. If the validation succeeds, `validate` returns `nothing`:
 ```julia
-isvalid( JSON.parse("{ "foo": true }"), myschema) # true
-isvalid( JSON.parse("{ "bar": 12.5 }"), myschema) # false
+julia> data_pass = Dict("foo" => true)
+Dict{String,Bool} with 1 entry:
+  "foo" => true
+
+julia> validate(data_pass, my_schema)
+
 ```
-The JSON instance should be provided as a pre-processed `JSON` object created
-with the `JSON` package.
 
-
-Should you need a diagnostic message to understand the cause of rejection you
-can use the `diagnose()` function. `diagnose()` will either return `nothing`
-if the instance is valid or a message detailing which assertion failed.
+If the validation fails, a struct is returned that, when printed, explains the reason for
+the failure:
 ```julia
-diagnose( JSON.parse("{ "foo": true }") , myschema)
-# nothing
-diagnose( JSON.parse("{ "bar": 12.5 }") , myschema)
-# "in [] : required property 'foo' missing"
+julia> data_fail = Dict("bar" => 12.5)
+Dict{String,Float64} with 1 entry:
+  "bar" => 12.5
+
+julia> validate(data_fail, my_schema)
+Validation failed:
+path:         top-level
+instance:     Dict("bar"=>12.5)
+schema key:   required
+schema value: ["foo"]
 ```
+
+As a short-hand for `validate(x, schema) === nothing`, use `Base.isvalid(x, schema)`.
