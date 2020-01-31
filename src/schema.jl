@@ -10,33 +10,28 @@ function unescape_jpath(raw::String)
     return ret
 end
 
-function uri_to_dict(uri::HTTP.URI; remove_fields = Symbol[:uri])
-    dict = Dict(name => getfield(uri, name) for name in fieldnames(HTTP.URI))
-    delete!.(Ref(dict), remove_fields)
-    return dict
+function type_to_dict(x)
+    return Dict(name => getfield(x, name) for name in fieldnames(typeof(x)))
 end
 
-# Calculate the full id of the explored item using the parent URI in
-# 'id0', and the 'id' property in 's'
-function update_id(id0::HTTP.URI, s::String)
+function update_id(uri::HTTP.URI, s::String)
     id2 = HTTP.URI(s)
     if !isempty(id2.scheme)
         return id2
     end
-    els = uri_to_dict(id0)
+    els = type_to_dict(uri)
+    delete!(els, :uri)
     els[:fragment] = id2.fragment
-    if !isempty(id2.path) # replace path of id0
-        oldpath = match(r"^(.*/).*$", id0.path)
+    if !isempty(id2.path)
+        oldpath = match(r"^(.*/).*$", uri.path)
         els[:path] = oldpath == nothing ? id2.path : oldpath.captures[1] * id2.path
     end
     return HTTP.URI(; els...)
 end
 
-# Search the element refered to by JSPointer/fragment in `path` in the `schema`.
 function get_element(schema, path::AbstractString)
     for element in split(path, "/"; keepempty = false)
-        s_element = unescape_jpath(String(element))
-        schema = _recurse_get_element(schema, s_element)
+        schema = _recurse_get_element(schema, unescape_jpath(String(element)))
     end
     return schema
 end
@@ -70,40 +65,39 @@ function get_remote_schema(uri::HTTP.URI)
     return Schema(JSON.parse(String(r.body)))
 end
 
-function find_ref(id0, idmap, path::String, parent_dir::String)
+function find_ref(
+    uri::HTTP.URI, id_map::Dict{String, Any}, path::String, parent_dir::String
+)
     if path == "" || path == "#"  # This path refers to the root schema.
-        return idmap[string(id0)]
+        return id_map[string(uri)]
     elseif startswith(path, "#/")  # This path is a JPointer.
-        return get_element(idmap[string(id0)], path[3:end])
+        return get_element(id_map[string(uri)], path[3:end])
     end
-    # If we reach here, the path is a URI.
-    uri = update_id(id0, path)
-    # Strip fragment from uri.
-    uri2 = HTTP.URI(; uri_to_dict(uri; remove_fields = [:uri, :fragment])...)
-    isFileUri = startswith(uri2.scheme, "file") || isempty(uri2.scheme)
-    # normalize a file path to an absolute path so creating a key is consistent
-    if isFileUri && !isabspath(uri2.path)
-        uri2 = HTTP.URIs.merge(
-            uri2;
-            path = abspath(joinpath(parent_dir, uri2.path))
-        )
+    uri = update_id(uri, path)
+    els = type_to_dict(uri)
+    delete!.(Ref(els), [:uri, :fragment])
+    uri2 = HTTP.URI(; els...)
+    is_file_uri = startswith(uri2.scheme, "file") || isempty(uri2.scheme)
+    if is_file_uri && !isabspath(uri2.path)
+        # Normalize a file path to an absolute path so creating a key is consistent.
+        uri2 = HTTP.URIs.merge(uri2; path = abspath(joinpath(parent_dir, uri2.path)))
     end
-    if !haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
-        if startswith(uri2.scheme, "http")
+    if !haskey(id_map, string(uri2))
+        # id_map doesn't have this key so, fetch the ref and add it to id_map.
+        id_map[string(uri2)] = if startswith(uri2.scheme, "http")
             @info("fetching remote ref $(uri2)")
-            idmap[string(uri2)] = get_remote_schema(uri2).data
-        elseif isFileUri
+            get_remote_schema(uri2).data
+        else
+            @assert is_file_uri
             @info("loading local ref $(uri2)")
-            idmap[string(uri2)] = Schema(
-                JSON.parsefile(uri2.path);
-                parent_dir = dirname(uri2.path)
-            ).data
+            Schema(JSON.parsefile(uri2.path); parent_dir = dirname(uri2.path)).data
         end
     end
-    return get_element(idmap[string(uri2)], uri.fragment)
+    return get_element(id_map[string(uri2)], uri.fragment)
 end
 
 # Recursively find all "$ref" fields and resolve their path.
+
 resolve_refs!(::Any, ::HTTP.URI, ::Dict{String,Any}, ::String) = nothing
 
 function resolve_refs!(
@@ -146,7 +140,6 @@ function resolve_refs!(
     return
 end
 
-# Construct the map of ids to schema elements.
 function build_id_map(schema::Dict)
     id_map = Dict{String, Any}("" => schema)
     build_id_map!(id_map, schema, HTTP.URI())
