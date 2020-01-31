@@ -236,4 +236,40 @@ end
             "definitions": [1, 2]
         }""")
     )
+    @test_throws(
+        ErrorException("cannot support circular references in schema."),
+        validate(
+            Dict("version" => 1),
+            Schema("""{
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "\$ref": "#/definitions/Foo"
+                    }
+                },
+                "definitions": {
+                    "Foo": {
+                        "\$ref": "#/definitions/Foo"
+                    }
+                }
+            }""")
+        )
+    )
+end
+
+@testset "_is_type" begin
+    for (key, val) in Dict(
+        :array => [1, 2],
+        :boolean => true,
+        :integer => 1,
+        :number => 1.0,
+        :null => nothing,
+        :object => Dict(),
+        :string => "string",
+    )
+        @test JSONSchema._is_type(val, Val(Symbol(key)))
+        @test !JSONSchema._is_type(:not_a_json_type, Val(Symbol(key)))
+    end
+    @test !JSONSchema._is_type(true, Val(:number))
+    @test !JSONSchema._is_type(true, Val(:integer))
 end

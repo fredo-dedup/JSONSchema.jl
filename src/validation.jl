@@ -81,7 +81,7 @@ function _resolve_refs(schema::Dict, explored_refs = Any[schema])
     end
     schema = schema["\$ref"]
     if schema in explored_refs
-        error("Cannot support circular references in schema.")
+        error("cannot support circular references in schema.")
     end
     push!(explored_refs, schema)
     return _resolve_refs(schema, explored_refs)
