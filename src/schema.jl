@@ -70,7 +70,7 @@ function get_remote_schema(uri::HTTP.URI)
     return Schema(JSON.parse(String(r.body)))
 end
 
-function find_ref(id0, idmap, path::String, dir::String)
+function find_ref(id0, idmap, path::String, parent_dir::String)
     if path == "" || path == "#"  # This path refers to the root schema.
         return idmap[string(id0)]
     elseif startswith(path, "#/")  # This path is a JPointer.
@@ -85,7 +85,7 @@ function find_ref(id0, idmap, path::String, dir::String)
     if isFileUri && !isabspath(uri2.path)
         uri2 = HTTP.URIs.merge(
             uri2;
-            path = abspath(joinpath(dir, uri2.path))
+            path = abspath(joinpath(parent_dir, uri2.path))
         )
     end
     if !haskey(idmap, string(uri2))  # if not referenced already, fetch remote ref, add to idmap
@@ -96,7 +96,7 @@ function find_ref(id0, idmap, path::String, dir::String)
             @info("loading local ref $(uri2)")
             idmap[string(uri2)] = Schema(
                 JSON.parsefile(uri2.path);
-                dir = dirname(uri2.path)
+                parent_dir = dirname(uri2.path)
             ).data
         end
     end
@@ -110,10 +110,10 @@ function resolve_refs!(
     schema::Vector,
     uri::HTTP.URI,
     id_map::Dict{String,Any},
-    dir::String
+    parent_dir::String
 )
     for s in schema
-        resolve_refs!(s, uri, id_map, dir)
+        resolve_refs!(s, uri, id_map, parent_dir)
     end
     return
 end
@@ -122,7 +122,7 @@ function resolve_refs!(
     schema::Dict,
     uri::HTTP.URI,
     id_map::Dict{String,Any},
-    dir::String
+    parent_dir::String
 )
     if haskey(schema, "id") && schema["id"] isa String
         # This block is for draft 4.
@@ -138,9 +138,9 @@ function resolve_refs!(
             # We will replace the path string with the schema element pointed at, thus
             # marking it as resolved. This should prevent infinite recursions caused by
             # self referencing.
-            schema["\$ref"] = find_ref(uri, id_map, v, dir)
+            schema["\$ref"] = find_ref(uri, id_map, v, parent_dir)
         else
-            resolve_refs!(v, uri, id_map, dir)
+            resolve_refs!(v, uri, id_map, parent_dir)
         end
     end
     return
@@ -179,17 +179,17 @@ end
 
 """
 
-    Schema(schema::Dict; dir::String = abspath("."))
+    Schema(schema::Dict; parent_dir::String = abspath("."))
 
 Create a schema but with `schema` being a parsed JSON created with `JSON.parse()` or
 `JSON.parsefile()`.
 
-`dir` is the path with respect to which references to local schemas are resolved.
+`parent_dir` is the path with respect to which references to local schemas are resolved.
 
 ## Examples
 
     my_schema = Schema(JSON.parsefile(filename))
-    my_schema = Schema(JSON.parsefile(filename); dir = "~/schemas")
+    my_schema = Schema(JSON.parsefile(filename); parent_dir = "~/schemas")
 """
 struct Schema
     data::Union{Dict{String, Any}, Bool}
@@ -198,26 +198,26 @@ struct Schema
 
     function Schema(
         schema::Dict;
-        dir::String = abspath("."),
+        parent_dir::String = abspath("."),
         parentFileDirectory = nothing,
     )
         if parentFileDirectory !== nothing
-            @warn("kwarg `parentFileDirectory` is deprecated. Use `dir` instead.")
-            dir = parentFileDirectory
+            @warn("kwarg `parentFileDirectory` is deprecated. Use `parent_dir` instead.")
+            parent_dir = parentFileDirectory
         end
         schema = deepcopy(schema)  # Ensure we don't modify the user's data!
         id_map = build_id_map(schema)
-        resolve_refs!(schema, HTTP.URI(), id_map, dir)
+        resolve_refs!(schema, HTTP.URI(), id_map, parent_dir)
         return new(schema)
     end
 end
 
 """
-    Schema(schema::String; dir::String = abspath("."))
+    Schema(schema::String; parent_dir::String = abspath("."))
 
 Create a schema for document validation by parsing the string `schema`.
 
-`dir` is the path with respect to which references to local schemas are resolved.
+`parent_dir` is the path with respect to which references to local schemas are resolved.
 
 ## Examples
 
@@ -234,7 +234,7 @@ Create a schema for document validation by parsing the string `schema`.
         \"\"\"{
             "\$ref": "local_file.json"
         }\"\"\",
-        dir = "~/schemas"
+        parent_dir = "~/schemas"
     )
 """
 Schema(schema::String; kwargs...) = Schema(JSON.parse(schema); kwargs...)

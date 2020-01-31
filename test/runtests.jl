@@ -140,7 +140,8 @@ write(
             @testset "$(schema["description"])" for schema in JSON.parsefile(file_path)
                 spec = Schema(
                     schema["schema"];
-                    dir = schema["schema"] isa Bool ? abspath(".") : dirname(file_path)
+                    parent_dir =
+                        schema["schema"] isa Bool ? abspath(".") : dirname(file_path)
                 )
                 @testset "$(test["description"])" for test in schema["tests"]
                     @test isvalid(test["data"], spec) == test["valid"]
@@ -173,6 +174,11 @@ end
     @test sprint(show, ret) == fail_msg
     @test diagnose(data_pass, schema) === nothing
     @test diagnose(data_fail, schema) == fail_msg
+end
+
+@testset "parentFileDirectory deprecation" begin
+    schema = Schema("{}"; parentFileDirectory = ".")
+    @test typeof(schema) == Schema
 end
 
 @testset "Schemas" begin
