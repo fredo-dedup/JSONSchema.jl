@@ -204,3 +204,44 @@ end
     @test typeof(schema_2) == Schema
     @test typeof(schema_2.data) == Bool
 end
+
+@testset "Base.show" begin
+    schema = Schema("{}")
+    @test sprint(show, schema) == "A JSONSchema"
+end
+
+@testset "errors" begin
+    @test_throws(
+        ErrorException("missing property 'Foo' in $(Dict{String,Any}())."),
+        Schema("""{
+            "type": "object",
+            "properties": {"version": {"\$ref": "#/definitions/Foo"}},
+            "definitions": {}
+        }""")
+    )
+
+    @test_throws(
+        ErrorException("unmanaged type in ref resolution $(Int): 1."),
+        Schema("""{
+            "type": "object",
+            "properties": {"version": {"\$ref": "#/definitions/Foo"}},
+            "definitions": 1
+        }""")
+    )
+    @test_throws(
+        ErrorException("expected integer array index instead of 'Foo'."),
+        Schema("""{
+            "type": "object",
+            "properties": {"version": {"\$ref": "#/definitions/Foo"}},
+            "definitions": [1, 2]
+        }""")
+    )
+    @test_throws(
+        ErrorException("item index 3 is larger than array $(Any[1, 2])."),
+        Schema("""{
+            "type": "object",
+            "properties": {"version": {"\$ref": "#/definitions/3"}},
+            "definitions": [1, 2]
+        }""")
+    )
+end

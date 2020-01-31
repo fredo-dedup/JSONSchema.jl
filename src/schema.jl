@@ -47,7 +47,7 @@ end
 
 function _recurse_get_element(schema::Dict, element::String)
     if !haskey(schema, element)
-        error("missing property '$(element)' in $(schema)")
+        error("missing property '$(element)' in $(schema).")
     end
     return schema[element]
 end
@@ -55,9 +55,9 @@ end
 function _recurse_get_element(schema::Vector, element::String)
     index = tryparse(Int, element)  # Remember that `index` is 0-indexed!
     if index === nothing
-        error("expected integer array index instead of '$(element)'")
+        error("expected integer array index instead of '$(element)'.")
     elseif index >= length(schema)
-        error("item index $(index) is larger than array $(schema)")
+        error("item index $(index) is larger than array $(schema).")
     end
     return schema[index + 1]
 end
@@ -220,4 +220,4 @@ end
 
 Schema(schema::String; kwargs...) = Schema(JSON.parse(schema); kwargs...)
 
-Base.show(io::IO, ::Schema) = println(io, "A JSONSchema")
+Base.show(io::IO, ::Schema) = print(io, "A JSONSchema")
