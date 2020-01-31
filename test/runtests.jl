@@ -29,18 +29,14 @@ write(
     joinpath(REF_LOCAL_TEST_DIR, "localReferenceSchemaOne.json"),
     """{
     "type": "object",
-    "properties": {
-        "localRefOneResult": { "type": "string" }
-    }
+    "properties": {"localRefOneResult": {"type": "string"}}
 }""")
 
 write(
     joinpath(REF_LOCAL_TEST_DIR, "localReferenceSchemaTwo.json"),
     """{
     "type": "object",
-    "properties": {
-        "localRefTwoResult": { "type": "number" }
-    }
+    "properties": {"localRefTwoResult": {"type": "number"}}
 }""")
 
 write(
@@ -48,7 +44,9 @@ write(
     """{
     "type": "object",
     "properties": {
-        "result": { "\$ref": "file:localReferenceSchemaOne.json#/properties/localRefOneResult" }
+        "result": {
+            "\$ref": "file:localReferenceSchemaOne.json#/properties/localRefOneResult"
+        }
     }
 }""")
 
@@ -62,42 +60,33 @@ write(
             "result1": { "\$ref": "file:../$(basename(abspath(REF_LOCAL_TEST_DIR)))/localReferenceSchemaOne.json#/properties/localRefOneResult" },
             "result2": { "\$ref": "../$(basename(abspath(REF_LOCAL_TEST_DIR)))/localReferenceSchemaTwo.json#/properties/localRefTwoResult" }
         },
-        "oneOf": [
-            {
-                "required": ["result1"]
-            },
-            {
-                "required": ["result2"]
-            }
-        ]
+        "oneOf": [{
+            "required": ["result1"]
+        }, {
+            "required": ["result2"]
+        }]
     },
-    "tests": [
-        {
-            "description": "reference only local schema 1",
-            "data": {"result1": "some text" },
-            "valid": true
-        },
-        {
-            "description": "reference only local schema 2",
-                "data": {"result2": 1234 },
-                "valid": true
-        },
-        {
-            "description": "incorrect reference to local schema 1",
-                "data": { "result1": true },
-                "valid": false
-        },
-        {
-            "description": "reference neither local schemas",
-                "data": { "result": true },
-                "valid": false
-        },
-        {
-            "description": "reference both local schemas",
-            "data": {"result1": "some text", "result2": 500 },
-            "valid": false
-        }
-    ]
+    "tests": [{
+        "description": "reference only local schema 1",
+        "data": {"result1": "some text"},
+        "valid": true
+    }, {
+        "description": "reference only local schema 2",
+        "data": {"result2": 1234},
+        "valid": true
+    }, {
+        "description": "incorrect reference to local schema 1",
+        "data": {"result1": true},
+        "valid": false
+    }, {
+        "description": "reference neither local schemas",
+        "data": {"result": true},
+        "valid": false
+    }, {
+        "description": "reference both local schemas",
+        "data": {"result1": "some text", "result2": 500},
+        "valid": false
+    }]
 }]""")
 
 write(
@@ -107,21 +96,20 @@ write(
     "schema": {
         "type": "object",
         "properties": {
-            "result": { "\$ref": "file:../$(basename(abspath(REF_LOCAL_TEST_DIR)))/nestedLocalReference.json#/properties/result" }
+            "result": {
+                "\$ref": "file:../$(basename(abspath(REF_LOCAL_TEST_DIR)))/nestedLocalReference.json#/properties/result"
+            }
         }
     },
-    "tests": [
-        {
-            "description": "nested reference, correct type",
-            "data": {"result": "some text" },
-            "valid": true
-        },
-        {
-            "description": "nested reference, incorrect type",
-            "data": {"result": 1234 },
-            "valid": false
-        }
-    ]
+    "tests": [{
+        "description": "nested reference, correct type",
+        "data": {"result": "some text"},
+        "valid": true
+    }, {
+        "description": "nested reference, incorrect type",
+        "data": {"result": 1234},
+        "valid": false
+    }]
 }]""")
 
 @testset "Draft 4/6" begin
@@ -147,13 +135,15 @@ write(
     ]
         test_dir = joinpath(SCHEMA_TEST_DIR, draft_folder)
         GLOBAL_TEST_DIR[] = test_dir
-        @testset "$tfn" for tfn in filter(n -> occursin(r"\.json$",n), readdir(test_dir))
-            fn = joinpath(test_dir, tfn)
-            @testset "- $(subschema["description"])" for subschema in (JSON.parsefile(fn))
-                dir = subschema["schema"] isa Bool ? abspath(".") : dirname(fn)
-                spec = Schema(subschema["schema"]; parentFileDirectory = dir)
-                @testset "* $(subtest["description"])" for subtest in subschema["tests"]
-                    @test isvalid(subtest["data"], spec) == subtest["valid"]
+        @testset "$(file)" for file in filter(n -> endswith(n, ".json"), readdir(test_dir))
+            file_path = joinpath(test_dir, file)
+            @testset "$(schema["description"])" for schema in JSON.parsefile(file_path)
+                spec = Schema(
+                    schema["schema"];
+                    dir = schema["schema"] isa Bool ? abspath(".") : dirname(file_path)
+                )
+                @testset "$(test["description"])" for test in schema["tests"]
+                    @test isvalid(test["data"], spec) == test["valid"]
                 end
             end
         end
@@ -162,15 +152,13 @@ write(
 end
 
 @testset "Validate and diagnose" begin
-    schema = Schema(
-        Dict(
-            "properties" => Dict(
-                "foo" => Dict(),
-                "bar" => Dict()
-            ),
-            "required" => ["foo"]
-        )
-    )
+    schema = Schema(Dict(
+        "properties" => Dict(
+            "foo" => Dict(),
+            "bar" => Dict()
+        ),
+        "required" => ["foo"]
+    ))
     data_pass = Dict("foo" => true)
     data_fail = Dict("bar" => 12.5)
     @test JSONSchema.validate(data_pass, schema) === nothing
@@ -188,15 +176,13 @@ end
 end
 
 @testset "Schemas" begin
-    schema = Schema("""
-    {
+    schema = Schema("""{
         \"properties\": {
         \"foo\": {},
         \"bar\": {}
         },
         \"required\": [\"foo\"]
-    }
-    """)
+    }""")
     @test typeof(schema) == Schema
     @test typeof(schema.data) == Dict{String,Any}
 
@@ -221,7 +207,7 @@ end
     )
 
     @test_throws(
-        ErrorException("unmanaged type in ref resolution $(Int): 1."),
+        ErrorException("unmanaged type in ref resolution $(Int64): 1."),
         Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
