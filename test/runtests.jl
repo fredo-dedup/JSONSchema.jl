@@ -1,18 +1,24 @@
-using BinaryProvider
 using HTTP
 using JSONSchema
 using JSON
 using Test
+using ZipFile
 
-const TEST_SUITE_URL = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/2.0.0.tar.gz"
+const TEST_SUITE_URL = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/2.0.0.zip"
 
 const SCHEMA_TEST_DIR = let
     dest_dir = mktempdir()
-    dest_file = joinpath(dest_dir, "test-suite.tar.gz")
-    BinaryProvider.download(TEST_SUITE_URL, dest_file, verbose = true)
-    unzip_dir = joinpath(dest_dir, "test-suite")
-    BinaryProvider.unpack(dest_file, unzip_dir)
-    joinpath(unzip_dir, "JSON-Schema-Test-Suite-2.0.0", "tests")
+    dest_file = joinpath(dest_dir, "test-suite.zip")
+    download(TEST_SUITE_URL, dest_file)
+    for f in ZipFile.Reader(dest_file).files
+        filename = joinpath(dest_dir, "test-suite", f.name)
+        if endswith(filename, "/")
+            mkpath(filename)
+        else
+            write(filename, read(f, String))
+        end
+    end
+    joinpath(dest_dir, "test-suite", "JSON-Schema-Test-Suite-2.0.0", "tests")
 end
 
 const LOCAL_TEST_DIR = mktempdir(SCHEMA_TEST_DIR)
