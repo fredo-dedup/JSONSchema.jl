@@ -108,26 +108,26 @@ end
 
 # 9.2.1.2
 function _validate(x, schema, ::Val{:anyOf}, val::Vector, path::String)
-    matched = false
     for v in val
-        ret = _validate(x, v, path)
-        if ret === nothing
-            matched = true
+        if _validate(x, v, path) === nothing
+            return
         end
     end
-    return !matched ? SingleIssue(x, path, "anyOf", val) : nothing
+    return SingleIssue(x, path, "anyOf", val)
 end
 
 # 9.2.1.3
 function _validate(x, schema, ::Val{:oneOf}, val::Vector, path::String)
-    matched = 0
+    found_match = false
     for v in val
-        ret = _validate(x, v, path)
-        if ret === nothing
-            matched += 1
+        if _validate(x, v, path) === nothing
+            if found_match # Found more than one match!
+                return SingleIssue(x, path, "oneOf", val)
+            end
+            found_match = true
         end
     end
-    return matched != 1 ? SingleIssue(x, path, "oneOf", val) : nothing
+    return found_match ? nothing : SingleIssue(x, path, "oneOf", val)
 end
 
 # 9.2.1.4
