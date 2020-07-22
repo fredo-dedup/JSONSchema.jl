@@ -276,6 +276,8 @@ end
         @test JSONSchema._is_type(val, Val(Symbol(key)))
         @test !JSONSchema._is_type(:not_a_json_type, Val(Symbol(key)))
     end
+    @test JSONSchema._is_type(missing, Val(:null))
+
     @test !JSONSchema._is_type(true, Val(:number))
     @test !JSONSchema._is_type(true, Val(:integer))
 end

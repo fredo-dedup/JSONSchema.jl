@@ -317,6 +317,7 @@ _is_type(::Bool, ::Val{:boolean}) = true
 _is_type(::Integer, ::Val{:integer}) = true
 _is_type(::Real, ::Val{:number}) = true
 _is_type(::Nothing, ::Val{:null}) = true
+_is_type(::Missing, ::Val{:null}) = true
 _is_type(::Dict, ::Val{:object}) = true
 _is_type(::String, ::Val{:string}) = true
 # Note that Julia treat's Bool <: Number, but JSON-Schema distinguishes them.
