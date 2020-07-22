@@ -318,7 +318,7 @@ _is_type(::Integer, ::Val{:integer}) = true
 _is_type(::Real, ::Val{:number}) = true
 _is_type(::Nothing, ::Val{:null}) = true
 _is_type(::Missing, ::Val{:null}) = true
-_is_type(::Dict, ::Val{:object}) = true
+_is_type(::AbstractDict, ::Val{:object}) = true
 _is_type(::String, ::Val{:string}) = true
 # Note that Julia treat's Bool <: Number, but JSON-Schema distinguishes them.
 _is_type(::Bool, ::Val{:number}) = false
@@ -432,22 +432,22 @@ end
 ###
 
 # 6.5.1
-function _validate(x::Dict, schema, ::Val{:maxProperties}, val::Integer, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:maxProperties}, val::Integer, path::String)
     return length(x) > val ? SingleIssue(x, path, "maxProperties", val) : nothing
 end
 
 # 6.5.2
-function _validate(x::Dict, schema, ::Val{:minProperties}, val::Integer, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:minProperties}, val::Integer, path::String)
     return length(x) < val ? SingleIssue(x, path, "minProperties", val) : nothing
 end
 
 # 6.5.3
-function _validate(x::Dict, schema, ::Val{:required}, val::Vector, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:required}, val::Vector, path::String)
     return any(v -> !haskey(x, v), val) ? SingleIssue(x, path, "required", val) : nothing
 end
 
 # 6.5.4
-function _validate(x::Dict, schema, ::Val{:dependencies}, val::Dict, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:dependencies}, val::Dict, path::String)
     for (k, v) in val
         if !haskey(x, k)
             continue
@@ -458,7 +458,7 @@ function _validate(x::Dict, schema, ::Val{:dependencies}, val::Dict, path::Strin
     return
 end
 
-function _dependencies(x::Dict, path::String, val::Union{Bool,Dict})
+function _dependencies(x::AbstractDict, path::String, val::Union{Bool,Dict})
     return _validate(x, val, path) === nothing
 end
-_dependencies(x::Dict, path::String, val::Array) = all(v -> haskey(x, v), val)
+_dependencies(x::AbstractDict, path::String, val::Array) = all(v -> haskey(x, v), val)
