@@ -40,7 +40,7 @@ function _recurse_get_element(schema::Any, ::String)
     error("unmanaged type in ref resolution $(typeof(schema)): $(schema).")
 end
 
-function _recurse_get_element(schema::Dict, element::String)
+function _recurse_get_element(schema::AbstractDict, element::String)
     if !haskey(schema, element)
         error("missing property '$(element)' in $(schema).")
     end
@@ -66,7 +66,7 @@ function get_remote_schema(uri::HTTP.URI)
 end
 
 function find_ref(
-    uri::HTTP.URI, id_map::Dict{String, Any}, path::String, parent_dir::String
+    uri::HTTP.URI, id_map::AbstractDict, path::String, parent_dir::String
 )
     if path == "" || path == "#"  # This path refers to the root schema.
         return id_map[string(uri)]
@@ -98,12 +98,12 @@ end
 
 # Recursively find all "$ref" fields and resolve their path.
 
-resolve_refs!(::Any, ::HTTP.URI, ::Dict{String,Any}, ::String) = nothing
+resolve_refs!(::Any, ::HTTP.URI, ::AbstractDict, ::String) = nothing
 
 function resolve_refs!(
     schema::Vector,
     uri::HTTP.URI,
-    id_map::Dict{String,Any},
+    id_map::AbstractDict,
     parent_dir::String
 )
     for s in schema
@@ -113,9 +113,9 @@ function resolve_refs!(
 end
 
 function resolve_refs!(
-    schema::Dict,
+    schema::AbstractDict,
     uri::HTTP.URI,
-    id_map::Dict{String,Any},
+    id_map::AbstractDict,
     parent_dir::String
 )
     if haskey(schema, "id") && schema["id"] isa String
@@ -140,20 +140,20 @@ function resolve_refs!(
     return
 end
 
-function build_id_map(schema::Dict)
+function build_id_map(schema::AbstractDict)
     id_map = Dict{String, Any}("" => schema)
     build_id_map!(id_map, schema, HTTP.URI())
     return id_map
 end
 
-build_id_map!(::Dict{String,Any}, ::Any, ::HTTP.URI) = nothing
+build_id_map!(::AbstractDict, ::Any, ::HTTP.URI) = nothing
 
-function build_id_map!(id_map::Dict{String,Any}, schema::Vector, uri::HTTP.URI)
+function build_id_map!(id_map::AbstractDict, schema::Vector, uri::HTTP.URI)
     build_id_map!.(Ref(id_map), schema, Ref(uri))
     return
 end
 
-function build_id_map!(id_map::Dict{String,Any}, schema::Dict, uri::HTTP.URI)
+function build_id_map!(id_map::AbstractDict, schema::AbstractDict, uri::HTTP.URI)
     if haskey(schema, "id") && schema["id"] isa String
         # This block is for draft 4.
         uri = update_id(uri, schema["id"])
@@ -172,7 +172,7 @@ end
 
 """
 
-    Schema(schema::Dict; parent_dir::String = abspath("."))
+    Schema(schema::AbstractDict; parent_dir::String = abspath("."))
 
 Create a schema but with `schema` being a parsed JSON created with `JSON.parse()` or
 `JSON.parsefile()`.
@@ -185,12 +185,12 @@ Create a schema but with `schema` being a parsed JSON created with `JSON.parse()
     my_schema = Schema(JSON.parsefile(filename); parent_dir = "~/schemas")
 """
 struct Schema
-    data::Union{Dict{String, Any}, Bool}
+    data::Union{AbstractDict, Bool}
 
     Schema(schema::Bool; kwargs...) = new(schema)
 
     function Schema(
-        schema::Dict;
+        schema::AbstractDict;
         parent_dir::String = abspath("."),
         parentFileDirectory = nothing,
     )
