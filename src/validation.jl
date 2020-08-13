@@ -61,7 +61,7 @@ function _validate(x, schema, path::String)
     return _validate_entry(x, schema, path)
 end
 
-function _validate_entry(x, schema::Dict, path)
+function _validate_entry(x, schema::AbstractDict, path)
     for (k, v) in schema
         ret = _validate(x, schema, Val{Symbol(k)}(), v, path)
         if ret !== nothing
@@ -75,7 +75,7 @@ function _validate_entry(x, schema::Bool, path::String)
     return schema ? nothing : SingleIssue(x, path, "schema", schema)
 end
 
-function _resolve_refs(schema::Dict, explored_refs = Any[schema])
+function _resolve_refs(schema::AbstractDict, explored_refs = Any[schema])
     if !haskey(schema, "\$ref")
         return schema
     end
@@ -147,7 +147,7 @@ end
 ###
 
 # 9.3.1.1
-function _validate(x::Vector, schema, ::Val{:items}, val::Dict, path::String)
+function _validate(x::Vector, schema, ::Val{:items}, val::AbstractDict, path::String)
     items = fill(false, length(x))
     for (i, xi) in enumerate(x)
         ret = _validate(xi, val, path * "[$(i)]")
@@ -222,7 +222,7 @@ end
 ###
 
 # 9.3.2.1
-function _validate(x::Dict, schema, ::Val{:properties}, val::Dict, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:properties}, val::AbstractDict, path::String)
     for (k, v) in x
         if haskey(val, k)
             ret = _validate(v, val[k], path * "[$(k)]")
@@ -235,7 +235,7 @@ function _validate(x::Dict, schema, ::Val{:properties}, val::Dict, path::String)
 end
 
 # 9.3.2.2
-function _validate(x::Dict, schema, ::Val{:patternProperties}, val::Dict, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:patternProperties}, val::AbstractDict, path::String)
     for (k_val, v_val) in val
         r = Regex(k_val)
         for (k_x, v_x) in x
@@ -252,7 +252,7 @@ function _validate(x::Dict, schema, ::Val{:patternProperties}, val::Dict, path::
 end
 
 # 9.3.2.3
-function _validate(x::Dict, schema, ::Val{:additionalProperties}, val::Dict, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:additionalProperties}, val::AbstractDict, path::String)
     properties = get(schema, "properties", Dict{String,Any}())
     patternProperties = get(schema, "patternProperties", Dict{String,Any}())
     for (k, v) in x
@@ -267,7 +267,7 @@ function _validate(x::Dict, schema, ::Val{:additionalProperties}, val::Dict, pat
     return
 end
 
-function _validate(x::Dict, schema, ::Val{:additionalProperties}, val::Bool, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:additionalProperties}, val::Bool, path::String)
     if val
         return
     end
@@ -285,7 +285,7 @@ end
 # 9.3.2.4: unevaluatedProperties
 
 # 9.3.2.5
-function _validate(x::Dict, schema, ::Val{:propertyNames}, val, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:propertyNames}, val, path::String)
     for k in keys(x)
         ret = _validate(k, val, path)
         if ret !== nothing
@@ -447,7 +447,7 @@ function _validate(x::AbstractDict, schema, ::Val{:required}, val::Vector, path:
 end
 
 # 6.5.4
-function _validate(x::AbstractDict, schema, ::Val{:dependencies}, val::Dict, path::String)
+function _validate(x::AbstractDict, schema, ::Val{:dependencies}, val::AbstractDict, path::String)
     for (k, v) in val
         if !haskey(x, k)
             continue
