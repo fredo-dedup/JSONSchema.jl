@@ -3,6 +3,7 @@ using JSONSchema
 using JSON
 using Test
 using ZipFile
+using OrderedCollections
 
 const TEST_SUITE_URL = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/2.0.0.zip"
 
@@ -280,4 +281,19 @@ end
 
     @test !JSONSchema._is_type(true, Val(:number))
     @test !JSONSchema._is_type(true, Val(:integer))
+end
+
+@testset "OrderedDict" begin
+    schema = Schema(Dict(
+        "properties" => Dict(
+            "foo" => Dict(),
+            "bar" => Dict()
+        ),
+        "required" => ["foo"]
+    ))
+    data_pass = OrderedDict("foo" => true)
+    data_fail = OrderedDict("bar" => 12.5)
+    @test JSONSchema.validate(data_pass, schema) === nothing
+    @test JSONSchema.validate(data_fail, schema) != nothing
+
 end
