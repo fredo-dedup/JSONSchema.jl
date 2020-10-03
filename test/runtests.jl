@@ -211,7 +211,7 @@ end
 
 @testset "errors" begin
     @test_throws(
-        ErrorException("missing property 'Foo' in $(Dict{String,Any}())."),
+        KeyError,
         Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
@@ -220,7 +220,7 @@ end
     )
 
     @test_throws(
-        ErrorException("unmanaged type in ref resolution $(Int64): 1."),
+        MethodError,
         Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
@@ -228,7 +228,7 @@ end
         }""")
     )
     @test_throws(
-        ErrorException("expected integer array index instead of 'Foo'."),
+        ArgumentError,
         Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
@@ -236,7 +236,7 @@ end
         }""")
     )
     @test_throws(
-        ErrorException("item index 3 is larger than array $(Any[1, 2])."),
+        BoundsError,
         Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/3"}},
@@ -294,6 +294,6 @@ end
     data_pass = OrderedDict("foo" => true)
     data_fail = OrderedDict("bar" => 12.5)
     @test JSONSchema.validate(data_pass, schema) === nothing
-    @test JSONSchema.validate(data_fail, schema) != nothing
+    @test JSONSchema.validate(data_fail, schema) !== nothing
 
 end
