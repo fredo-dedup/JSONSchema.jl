@@ -195,7 +195,4 @@ Create a schema for document validation by parsing the string `schema`.
 """
 Schema(schema::String; kwargs...) = Schema(JSON.parse(schema); kwargs...)
 
-function Base.show(io::IO, ::Schema) 
-    print(io, "A JSONSchema")
-
-end
+Base.show(io::IO, ::Schema) = print(io, "A JSONSchema")
