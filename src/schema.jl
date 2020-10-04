@@ -55,7 +55,7 @@ function find_ref(
         end
     end
 
-    p = JSONPointer.Pointer(uri.fragment)
+    p = JSONPointer.Pointer(uri.fragment; shift_index = true)
     return id_map[string(uri2)][p]
 end
 
