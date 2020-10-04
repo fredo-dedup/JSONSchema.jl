@@ -12,7 +12,7 @@ function update_id(uri::HTTP.URI, s::String)
     els[:fragment] = id2.fragment
     if !isempty(id2.path)
         oldpath = match(r"^(.*/).*$", uri.path)
-        els[:path] = oldpath == nothing ? id2.path : oldpath.captures[1] * id2.path
+        els[:path] = isnothing(oldpath) ? id2.path : oldpath.captures[1] * id2.path
     end
     return HTTP.URI(; els...)
 end
@@ -31,7 +31,7 @@ function find_ref(
     if path == "" || path == "#"  # This path refers to the root schema.
         return id_map[string(uri)]
     elseif startswith(path, "#/")  # This path is a JPointer.
-        p = JSONPointer.Pointer(path[2:end]; shift_index = true)
+        p = JSONPointer.Pointer(path; shift_index = true)
         return id_map[string(uri)][p]
     end
     uri = update_id(uri, path)
@@ -54,13 +54,9 @@ function find_ref(
             Schema(JSON.parsefile(uri2.path); parent_dir = dirname(uri2.path)).data
         end
     end
-    @show uri
-    if isempty(uri.fragment)
-        return id_map[string(uri2)]
-    else 
-        p = JSONPointer.Pointer(uri.fragment)
-        return id_map[string(uri2)][p]
-    end
+
+    p = JSONPointer.Pointer(uri.fragment)
+    return id_map[string(uri2)][p]
 end
 
 # Recursively find all "$ref" fields and resolve their path.
@@ -199,4 +195,7 @@ Create a schema for document validation by parsing the string `schema`.
 """
 Schema(schema::String; kwargs...) = Schema(JSON.parse(schema); kwargs...)
 
-Base.show(io::IO, ::Schema) = print(io, "A JSONSchema")
+function Base.show(io::IO, ::Schema) 
+    print(io, "A JSONSchema")
+
+end
