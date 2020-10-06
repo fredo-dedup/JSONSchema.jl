@@ -12,7 +12,7 @@ function update_id(uri::HTTP.URI, s::String)
     els[:fragment] = id2.fragment
     if !isempty(id2.path)
         oldpath = match(r"^(.*/).*$", uri.path)
-        els[:path] = isnothing(oldpath) ? id2.path : oldpath.captures[1] * id2.path
+        els[:path] = oldpath === nothing ? id2.path : oldpath.captures[1] * id2.path
     end
     return HTTP.URI(; els...)
 end
