@@ -8,7 +8,7 @@ JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
 [compat]
-HTTP = "0.8"
+HTTP = "0.8, 0.9"
 JSON = "0.21"
 ZipFile = "0.8, 0.9"
 julia = "1"
