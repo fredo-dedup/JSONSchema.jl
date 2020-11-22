@@ -2,9 +2,7 @@
 
 _JSON instance validation using JSON Schemas_
 
-[![Build Status](https://travis-ci.org/fredo-dedup/JSONSchema.jl.svg?branch=master)](https://travis-ci.org/fredo-dedup/JSONSchema.jl)
-[![Build status](https://ci.appveyor.com/api/projects/status/e6ea72l7sbll1via/branch/master?svg=true)](https://ci.appveyor.com/project/fredo-dedup/jsonschema/branch/master)
-[![Coverage Status](https://coveralls.io/repos/github/fredo-dedup/JSONSchema/badge.svg?branch=master)](https://coveralls.io/github/fredo-dedup/JSONSchema?branch=master)
+[![Build Status](https://github.com/fredo-dedup/JSONSchema.jl/workflows/CI/badge.svg?branch=master)](https://github.com/fredo-dedup/JSONSchema.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/fredo-dedup/JSONSchema.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/fredo-dedup/JSONSchema.jl)
 
 ## Overview
