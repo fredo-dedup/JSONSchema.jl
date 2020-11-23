@@ -1,6 +1,6 @@
 name = "JSONSchema"
 uuid = "7d188eb4-7ad8-530c-ae41-71a32a6d4692"
-version = "0.3.2"
+version = "0.3.3"
 
 [deps]
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
@@ -8,7 +8,7 @@ JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
 [compat]
-HTTP = "0.8"
+HTTP = "0.8, 0.9"
 JSON = "0.21"
 ZipFile = "0.8, 0.9"
 julia = "1"
