@@ -1,6 +1,7 @@
 module JSONSchema
 
 using JSON
+using JSONPointer
 import HTTP
 
 export Schema, validate

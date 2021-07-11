@@ -5,17 +5,19 @@ version = "0.3.3"
 [deps]
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+JSONPointer = "cc3ff66e-924d-4e6b-b111-1d9960e4bba9"
 ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
 [compat]
 HTTP = "0.8, 0.9"
 JSON = "0.21"
 ZipFile = "0.8, 0.9"
+JSONPointer = "0.2.3"
 julia = "1"
 
 [extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test", "OrderedCollections"]
