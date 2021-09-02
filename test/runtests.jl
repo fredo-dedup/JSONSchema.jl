@@ -151,7 +151,7 @@ write(
                         schema["schema"] isa Bool ? abspath(".") : dirname(file_path)
                 )
                 @testset "$(test["description"])" for test in schema["tests"]
-                    @test isvalid(test["data"], spec) == test["valid"]
+                    @test isvalid(spec, test["data"]) == test["valid"]
                 end
             end
         end
@@ -169,8 +169,8 @@ end
     ))
     data_pass = Dict("foo" => true)
     data_fail = Dict("bar" => 12.5)
-    @test JSONSchema.validate(data_pass, schema) === nothing
-    ret = JSONSchema.validate(data_fail, schema)
+    @test JSONSchema.validate(schema, data_pass) === nothing
+    ret = JSONSchema.validate(schema, data_fail)
     fail_msg = """Validation failed:
     path:         top-level
     instance:     $(data_fail)
@@ -246,7 +246,6 @@ end
     @test_throws(
         ErrorException("cannot support circular references in schema."),
         validate(
-            Dict("version" => 1),
             Schema("""{
                 "type": "object",
                 "properties": {
@@ -259,7 +258,8 @@ end
                         "\$ref": "#/definitions/Foo"
                     }
                 }
-            }""")
+            }"""),
+            Dict("version" => 1),
         )
     )
 end
@@ -293,7 +293,22 @@ end
     ))
     data_pass = OrderedDict("foo" => true)
     data_fail = OrderedDict("bar" => 12.5)
+    @test JSONSchema.validate(schema, data_pass) === nothing
+    @test JSONSchema.validate(schema, data_fail) != nothing
+end
+
+@testset "Inverse argument order" begin
+    schema = Schema(Dict(
+        "properties" => Dict(
+            "foo" => Dict(),
+            "bar" => Dict()
+        ),
+        "required" => ["foo"]
+    ))
+    data_pass = Dict("foo" => true)
+    data_fail = Dict("bar" => 12.5)
     @test JSONSchema.validate(data_pass, schema) === nothing
     @test JSONSchema.validate(data_fail, schema) != nothing
-
+    @test isvalid(data_pass, schema)
+    @test !isvalid(data_fail, schema)
 end
