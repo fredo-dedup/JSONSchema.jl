@@ -14,8 +14,8 @@ function type_to_dict(x)
     return Dict(name => getfield(x, name) for name in fieldnames(typeof(x)))
 end
 
-function update_id(uri::HTTP.URI, s::String)
-    id2 = HTTP.URI(s)
+function update_id(uri::URIs.URI, s::String)
+    id2 = URIs.URI(s)
     if !isempty(id2.scheme)
         return id2
     end
@@ -27,7 +27,7 @@ function update_id(uri::HTTP.URI, s::String)
         els[:path] =
             oldpath == nothing ? id2.path : oldpath.captures[1] * id2.path
     end
-    return HTTP.URI(; els...)
+    return URIs.URI(; els...)
 end
 
 function get_element(schema, path::AbstractString)
@@ -60,7 +60,7 @@ function _recurse_get_element(schema::Vector, element::String)
     return schema[index+1]
 end
 
-function get_remote_schema(uri::HTTP.URI)
+function get_remote_schema(uri::URIs.URI)
     r = HTTP.get(uri)
     if r.status != 200
         error("Unable to get remote schema at $uri. HTTP status = $(r.status)")
@@ -69,7 +69,7 @@ function get_remote_schema(uri::HTTP.URI)
 end
 
 function find_ref(
-    uri::HTTP.URI,
+    uri::URIs.URI,
     id_map::AbstractDict,
     path::String,
     parent_dir::String,
@@ -82,14 +82,11 @@ function find_ref(
     uri = update_id(uri, path)
     els = type_to_dict(uri)
     delete!.(Ref(els), [:uri, :fragment])
-    uri2 = HTTP.URI(; els...)
+    uri2 = URIs.URI(; els...)
     is_file_uri = startswith(uri2.scheme, "file") || isempty(uri2.scheme)
     if is_file_uri && !isabspath(uri2.path)
         # Normalize a file path to an absolute path so creating a key is consistent.
-        uri2 = HTTP.URIs.merge(
-            uri2;
-            path = abspath(joinpath(parent_dir, uri2.path)),
-        )
+        uri2 = URIs.URI(uri2; path = abspath(joinpath(parent_dir, uri2.path)))
     end
     if !haskey(id_map, string(uri2))
         # id_map doesn't have this key so, fetch the ref and add it to id_map.
@@ -110,11 +107,11 @@ end
 
 # Recursively find all "$ref" fields and resolve their path.
 
-resolve_refs!(::Any, ::HTTP.URI, ::AbstractDict, ::String) = nothing
+resolve_refs!(::Any, ::URIs.URI, ::AbstractDict, ::String) = nothing
 
 function resolve_refs!(
     schema::Vector,
-    uri::HTTP.URI,
+    uri::URIs.URI,
     id_map::AbstractDict,
     parent_dir::String,
 )
@@ -126,7 +123,7 @@ end
 
 function resolve_refs!(
     schema::AbstractDict,
-    uri::HTTP.URI,
+    uri::URIs.URI,
     id_map::AbstractDict,
     parent_dir::String,
 )
@@ -154,13 +151,13 @@ end
 
 function build_id_map(schema::AbstractDict)
     id_map = Dict{String,Any}("" => schema)
-    build_id_map!(id_map, schema, HTTP.URI())
+    build_id_map!(id_map, schema, URIs.URI())
     return id_map
 end
 
-build_id_map!(::AbstractDict, ::Any, ::HTTP.URI) = nothing
+build_id_map!(::AbstractDict, ::Any, ::URIs.URI) = nothing
 
-function build_id_map!(id_map::AbstractDict, schema::Vector, uri::HTTP.URI)
+function build_id_map!(id_map::AbstractDict, schema::Vector, uri::URIs.URI)
     build_id_map!.(Ref(id_map), schema, Ref(uri))
     return
 end
@@ -168,7 +165,7 @@ end
 function build_id_map!(
     id_map::AbstractDict,
     schema::AbstractDict,
-    uri::HTTP.URI,
+    uri::URIs.URI,
 )
     if haskey(schema, "id") && schema["id"] isa String
         # This block is for draft 4.
@@ -218,7 +215,7 @@ struct Schema
         end
         schema = deepcopy(schema)  # Ensure we don't modify the user's data!
         id_map = build_id_map(schema)
-        resolve_refs!(schema, HTTP.URI(), id_map, parent_dir)
+        resolve_refs!(schema, URIs.URI(), id_map, parent_dir)
         return new(schema)
     end
 end
