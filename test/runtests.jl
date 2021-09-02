@@ -37,14 +37,16 @@ write(
     """{
     "type": "object",
     "properties": {"localRefOneResult": {"type": "string"}}
-}""")
+}""",
+)
 
 write(
     joinpath(REF_LOCAL_TEST_DIR, "localReferenceSchemaTwo.json"),
     """{
     "type": "object",
     "properties": {"localRefTwoResult": {"type": "number"}}
-}""")
+}""",
+)
 
 write(
     joinpath(REF_LOCAL_TEST_DIR, "nestedLocalReference.json"),
@@ -55,7 +57,8 @@ write(
             "\$ref": "file:localReferenceSchemaOne.json#/properties/localRefOneResult"
         }
     }
-}""")
+}""",
+)
 
 write(
     joinpath(LOCAL_TEST_DIR, "localReferenceTest.json"),
@@ -94,7 +97,8 @@ write(
         "data": {"result1": "some text", "result2": 500},
         "valid": false
     }]
-}]""")
+}]""",
+)
 
 write(
     joinpath(LOCAL_TEST_DIR, "nestedLocalReferenceTest.json"),
@@ -117,7 +121,8 @@ write(
         "data": {"result": 1234},
         "valid": false
     }]
-}]""")
+}]""",
+)
 
 @testset "Draft 4/6" begin
     # Note(odow): I didn't want to use a mutable reference like this for the web-server.
@@ -127,28 +132,43 @@ write(
     # This is a simple hack until someone who knows more about this comes along...
     GLOBAL_TEST_DIR = Ref{String}("")
     server = HTTP.Sockets.listen(
-        HTTP.Sockets.InetAddr(parse(HTTP.Sockets.IPAddr, "127.0.0.1"), 1234)
+        HTTP.Sockets.InetAddr(parse(HTTP.Sockets.IPAddr, "127.0.0.1"), 1234),
     )
-    @async HTTP.listen("127.0.0.1", 1234; server = server, verbose = true) do http
+    @async HTTP.listen(
+        "127.0.0.1",
+        1234;
+        server = server,
+        verbose = true,
+    ) do http
         # Make sure to strip first character (`/`) from the target, otherwise it will
         # infer as a file in the root directory.
-        file = joinpath(GLOBAL_TEST_DIR[], "../../remotes", http.message.target[2:end])
+        file = joinpath(
+            GLOBAL_TEST_DIR[],
+            "../../remotes",
+            http.message.target[2:end],
+        )
         HTTP.setstatus(http, 200)
         startwrite(http)
-        write(http, read(file, String))
+        return write(http, read(file, String))
     end
     @testset "$(draft_folder)" for draft_folder in [
-        "draft4", "draft6", basename(abspath(LOCAL_TEST_DIR))
+        "draft4",
+        "draft6",
+        basename(abspath(LOCAL_TEST_DIR)),
     ]
         test_dir = joinpath(SCHEMA_TEST_DIR, draft_folder)
         GLOBAL_TEST_DIR[] = test_dir
-        @testset "$(file)" for file in filter(n -> endswith(n, ".json"), readdir(test_dir))
+        @testset "$(file)" for file in filter(
+            n -> endswith(n, ".json"),
+            readdir(test_dir),
+        )
             file_path = joinpath(test_dir, file)
-            @testset "$(schema["description"])" for schema in JSON.parsefile(file_path)
+            @testset "$(schema["description"])" for schema in
+                                                    JSON.parsefile(file_path)
                 spec = Schema(
                     schema["schema"];
-                    parent_dir =
-                        schema["schema"] isa Bool ? abspath(".") : dirname(file_path)
+                    parent_dir = schema["schema"] isa Bool ? abspath(".") :
+                                 dirname(file_path),
                 )
                 @testset "$(test["description"])" for test in schema["tests"]
                     @test isvalid(spec, test["data"]) == test["valid"]
@@ -160,13 +180,12 @@ write(
 end
 
 @testset "Validate and diagnose" begin
-    schema = Schema(Dict(
-        "properties" => Dict(
-            "foo" => Dict(),
-            "bar" => Dict()
+    schema = Schema(
+        Dict(
+            "properties" => Dict("foo" => Dict(), "bar" => Dict()),
+            "required" => ["foo"],
         ),
-        "required" => ["foo"]
-    ))
+    )
     data_pass = Dict("foo" => true)
     data_fail = Dict("bar" => 12.5)
     @test JSONSchema.validate(schema, data_pass) === nothing
@@ -284,13 +303,12 @@ end
 end
 
 @testset "OrderedDict" begin
-    schema = Schema(Dict(
-        "properties" => Dict(
-            "foo" => Dict(),
-            "bar" => Dict()
+    schema = Schema(
+        Dict(
+            "properties" => Dict("foo" => Dict(), "bar" => Dict()),
+            "required" => ["foo"],
         ),
-        "required" => ["foo"]
-    ))
+    )
     data_pass = OrderedDict("foo" => true)
     data_fail = OrderedDict("bar" => 12.5)
     @test JSONSchema.validate(schema, data_pass) === nothing
@@ -298,13 +316,12 @@ end
 end
 
 @testset "Inverse argument order" begin
-    schema = Schema(Dict(
-        "properties" => Dict(
-            "foo" => Dict(),
-            "bar" => Dict()
+    schema = Schema(
+        Dict(
+            "properties" => Dict("foo" => Dict(), "bar" => Dict()),
+            "required" => ["foo"],
         ),
-        "required" => ["foo"]
-    ))
+    )
     data_pass = Dict("foo" => true)
     data_fail = Dict("bar" => 12.5)
     @test JSONSchema.validate(data_pass, schema) === nothing
