@@ -316,13 +316,12 @@ end
 end
 
 @testset "Inverse argument order" begin
-    schema = Schema(Dict(
-        "properties" => Dict(
-            "foo" => Dict(),
-            "bar" => Dict()
+    schema = Schema(
+        Dict(
+            "properties" => Dict("foo" => Dict(), "bar" => Dict()),
+            "required" => ["foo"],
         ),
-        "required" => ["foo"]
-    ))
+    )
     data_pass = Dict("foo" => true)
     data_fail = Dict("bar" => 12.5)
     @test JSONSchema.validate(data_pass, schema) === nothing
