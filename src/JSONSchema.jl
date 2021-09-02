@@ -2,6 +2,7 @@ module JSONSchema
 
 using JSON
 import HTTP
+import URIs
 
 export Schema, validate
 
