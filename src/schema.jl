@@ -24,7 +24,8 @@ function update_id(uri::HTTP.URI, s::String)
     els[:fragment] = id2.fragment
     if !isempty(id2.path)
         oldpath = match(r"^(.*/).*$", uri.path)
-        els[:path] = oldpath == nothing ? id2.path : oldpath.captures[1] * id2.path
+        els[:path] =
+            oldpath == nothing ? id2.path : oldpath.captures[1] * id2.path
     end
     return HTTP.URI(; els...)
 end
@@ -37,7 +38,9 @@ function get_element(schema, path::AbstractString)
 end
 
 function _recurse_get_element(schema::Any, ::String)
-    error("unmanaged type in ref resolution $(typeof(schema)): $(schema).")
+    return error(
+        "unmanaged type in ref resolution $(typeof(schema)): $(schema).",
+    )
 end
 
 function _recurse_get_element(schema::AbstractDict, element::String)
@@ -54,7 +57,7 @@ function _recurse_get_element(schema::Vector, element::String)
     elseif index >= length(schema)
         error("item index $(index) is larger than array $(schema).")
     end
-    return schema[index + 1]
+    return schema[index+1]
 end
 
 function get_remote_schema(uri::HTTP.URI)
@@ -66,7 +69,10 @@ function get_remote_schema(uri::HTTP.URI)
 end
 
 function find_ref(
-    uri::HTTP.URI, id_map::AbstractDict, path::String, parent_dir::String
+    uri::HTTP.URI,
+    id_map::AbstractDict,
+    path::String,
+    parent_dir::String,
 )
     if path == "" || path == "#"  # This path refers to the root schema.
         return id_map[string(uri)]
@@ -80,7 +86,10 @@ function find_ref(
     is_file_uri = startswith(uri2.scheme, "file") || isempty(uri2.scheme)
     if is_file_uri && !isabspath(uri2.path)
         # Normalize a file path to an absolute path so creating a key is consistent.
-        uri2 = HTTP.URIs.merge(uri2; path = abspath(joinpath(parent_dir, uri2.path)))
+        uri2 = HTTP.URIs.merge(
+            uri2;
+            path = abspath(joinpath(parent_dir, uri2.path)),
+        )
     end
     if !haskey(id_map, string(uri2))
         # id_map doesn't have this key so, fetch the ref and add it to id_map.
@@ -90,7 +99,10 @@ function find_ref(
         else
             @assert is_file_uri
             @info("loading local ref $(uri2)")
-            Schema(JSON.parsefile(uri2.path); parent_dir = dirname(uri2.path)).data
+            Schema(
+                JSON.parsefile(uri2.path);
+                parent_dir = dirname(uri2.path),
+            ).data
         end
     end
     return get_element(id_map[string(uri2)], uri.fragment)
@@ -104,7 +116,7 @@ function resolve_refs!(
     schema::Vector,
     uri::HTTP.URI,
     id_map::AbstractDict,
-    parent_dir::String
+    parent_dir::String,
 )
     for s in schema
         resolve_refs!(s, uri, id_map, parent_dir)
@@ -116,7 +128,7 @@ function resolve_refs!(
     schema::AbstractDict,
     uri::HTTP.URI,
     id_map::AbstractDict,
-    parent_dir::String
+    parent_dir::String,
 )
     if haskey(schema, "id") && schema["id"] isa String
         # This block is for draft 4.
@@ -141,7 +153,7 @@ function resolve_refs!(
 end
 
 function build_id_map(schema::AbstractDict)
-    id_map = Dict{String, Any}("" => schema)
+    id_map = Dict{String,Any}("" => schema)
     build_id_map!(id_map, schema, HTTP.URI())
     return id_map
 end
@@ -153,7 +165,11 @@ function build_id_map!(id_map::AbstractDict, schema::Vector, uri::HTTP.URI)
     return
 end
 
-function build_id_map!(id_map::AbstractDict, schema::AbstractDict, uri::HTTP.URI)
+function build_id_map!(
+    id_map::AbstractDict,
+    schema::AbstractDict,
+    uri::HTTP.URI,
+)
     if haskey(schema, "id") && schema["id"] isa String
         # This block is for draft 4.
         uri = update_id(uri, schema["id"])
@@ -185,7 +201,7 @@ Create a schema but with `schema` being a parsed JSON created with `JSON.parse()
     my_schema = Schema(JSON.parsefile(filename); parent_dir = "~/schemas")
 """
 struct Schema
-    data::Union{AbstractDict, Bool}
+    data::Union{AbstractDict,Bool}
 
     Schema(schema::Bool; kwargs...) = new(schema)
 
@@ -195,7 +211,9 @@ struct Schema
         parentFileDirectory = nothing,
     )
         if parentFileDirectory !== nothing
-            @warn("kwarg `parentFileDirectory` is deprecated. Use `parent_dir` instead.")
+            @warn(
+                "kwarg `parentFileDirectory` is deprecated. Use `parent_dir` instead."
+            )
             parent_dir = parentFileDirectory
         end
         schema = deepcopy(schema)  # Ensure we don't modify the user's data!

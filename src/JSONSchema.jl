@@ -12,7 +12,7 @@ export diagnose
 function diagnose(x, schema)
     Base.depwarn(
         "`diagnose(x, schema)` is deprecated. Use `validate(schema, x)` instead.",
-        :diagnose
+        :diagnose,
     )
     ret = validate(schema, x)
     return ret === nothing ? nothing : sprint(show, ret)
