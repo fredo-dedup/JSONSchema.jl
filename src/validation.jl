@@ -14,47 +14,53 @@ function Base.show(io::IO, issue::SingleIssue)
 end
 
 """
-    validate(x, s::Schema)
+    validate(s::Schema, x)
 
-Validate document `x` is valid against the Schema `s`. If valid, return `nothing`, else
-return a `SingleIssue`. When printed, the returned `SingleIssue` describes the reason why
-the validation failed.
+Validate document `x` is valid against the Schema `s`. If valid, return
+`nothing`, else return a `SingleIssue`. When printed, the returned `SingleIssue`
+describes the reason why the validation failed.
 
 ## Examples
 
-    julia> schema = Schema(
-               Dict(
-                   "properties" => Dict(
-                       "foo" => Dict(),
-                       "bar" => Dict()
-                   ),
-                   "required" => ["foo"]
-               )
-           )
-    Schema
+```julia
+julia> schema = Schema(
+            Dict(
+                "properties" => Dict(
+                    "foo" => Dict(),
+                    "bar" => Dict()
+                ),
+                "required" => ["foo"]
+            )
+        )
+Schema
 
-    julia> data_pass = Dict("foo" => true)
-    Dict{String,Bool} with 1 entry:
-      "foo" => true
+julia> data_pass = Dict("foo" => true)
+Dict{String,Bool} with 1 entry:
+    "foo" => true
 
-    julia> data_fail = Dict("bar" => 12.5)
-    Dict{String,Float64} with 1 entry:
-      "bar" => 12.5
+julia> data_fail = Dict("bar" => 12.5)
+Dict{String,Float64} with 1 entry:
+    "bar" => 12.5
 
-    julia> validate(data_pass, schema)
+julia> validate(data_pass, schema)
 
-    julia> validate(data_fail, schema)
-    Validation failed:
-    path:         top-level
-    instance:     Dict("bar"=>12.5)
-    schema key:   required
-    schema value: ["foo"]
+julia> validate(data_fail, schema)
+Validation failed:
+path:         top-level
+instance:     Dict("bar"=>12.5)
+schema key:   required
+schema value: ["foo"]
+```
 """
-function validate(x, schema::Schema)
+function validate(schema::Schema, x)
     return _validate(x, schema.data, "")
 end
 
-Base.isvalid(x, schema::Schema) = validate(x, schema) === nothing
+Base.isvalid(schema::Schema, x) = validate(schema, x) === nothing
+
+# Fallbacks for the opposite argument.
+validate(x, schema::Schema) = validate(schema, x)
+Base.isvalid(x, schema::Schema) = isvalid(schema, x)
 
 function _validate(x, schema, path::String)
     schema = _resolve_refs(schema)

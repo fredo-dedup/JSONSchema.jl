@@ -51,7 +51,7 @@ julia> data_pass = Dict("foo" => true)
 Dict{String,Bool} with 1 entry:
   "foo" => true
 
-julia> validate(data_pass, my_schema)
+julia> validate(my_schema, data_pass)
 
 ```
 
@@ -62,7 +62,7 @@ julia> data_fail = Dict("bar" => 12.5)
 Dict{String,Float64} with 1 entry:
   "bar" => 12.5
 
-julia> validate(data_fail, my_schema)
+julia> validate(my_schema, data_fail)
 Validation failed:
 path:         top-level
 instance:     Dict("bar"=>12.5)
@@ -70,4 +70,5 @@ schema key:   required
 schema value: ["foo"]
 ```
 
-As a short-hand for `validate(x, schema) === nothing`, use `Base.isvalid(x, schema)`.
+As a short-hand for `validate(schema, x) === nothing`, use
+`Base.isvalid(schema, x)`.
