@@ -1,60 +1,69 @@
 struct SingleIssue
-    x
+    x::Any
     path::String
     reason::String
-    val
+    val::Any
 end
 
 function Base.show(io::IO, issue::SingleIssue)
-    println(io, """Validation failed:
-    path:         $(isempty(issue.path) ? "top-level" : issue.path)
-    instance:     $(issue.x)
-    schema key:   $(issue.reason)
-    schema value: $(issue.val)""")
+    return println(
+        io,
+        """Validation failed:
+path:         $(isempty(issue.path) ? "top-level" : issue.path)
+instance:     $(issue.x)
+schema key:   $(issue.reason)
+schema value: $(issue.val)""",
+    )
 end
 
 """
-    validate(x, s::Schema)
+    validate(s::Schema, x)
 
-Validate document `x` is valid against the Schema `s`. If valid, return `nothing`, else
-return a `SingleIssue`. When printed, the returned `SingleIssue` describes the reason why
-the validation failed.
+Validate document `x` is valid against the Schema `s`. If valid, return
+`nothing`, else return a `SingleIssue`. When printed, the returned `SingleIssue`
+describes the reason why the validation failed.
 
 ## Examples
 
-    julia> schema = Schema(
-               Dict(
-                   "properties" => Dict(
-                       "foo" => Dict(),
-                       "bar" => Dict()
-                   ),
-                   "required" => ["foo"]
-               )
-           )
-    Schema
+```julia
+julia> schema = Schema(
+            Dict(
+                "properties" => Dict(
+                    "foo" => Dict(),
+                    "bar" => Dict()
+                ),
+                "required" => ["foo"]
+            )
+        )
+Schema
 
-    julia> data_pass = Dict("foo" => true)
-    Dict{String,Bool} with 1 entry:
-      "foo" => true
+julia> data_pass = Dict("foo" => true)
+Dict{String,Bool} with 1 entry:
+    "foo" => true
 
-    julia> data_fail = Dict("bar" => 12.5)
-    Dict{String,Float64} with 1 entry:
-      "bar" => 12.5
+julia> data_fail = Dict("bar" => 12.5)
+Dict{String,Float64} with 1 entry:
+    "bar" => 12.5
 
-    julia> validate(data_pass, schema)
+julia> validate(data_pass, schema)
 
-    julia> validate(data_fail, schema)
-    Validation failed:
-    path:         top-level
-    instance:     Dict("bar"=>12.5)
-    schema key:   required
-    schema value: ["foo"]
+julia> validate(data_fail, schema)
+Validation failed:
+path:         top-level
+instance:     Dict("bar"=>12.5)
+schema key:   required
+schema value: ["foo"]
+```
 """
-function validate(x, schema::Schema)
+function validate(schema::Schema, x)
     return _validate(x, schema.data, "")
 end
 
-Base.isvalid(x, schema::Schema) = validate(x, schema) === nothing
+Base.isvalid(schema::Schema, x) = validate(schema, x) === nothing
+
+# Fallbacks for the opposite argument.
+validate(x, schema::Schema) = validate(schema, x)
+Base.isvalid(x, schema::Schema) = isvalid(schema, x)
 
 function _validate(x, schema, path::String)
     schema = _resolve_refs(schema)
@@ -147,7 +156,13 @@ end
 ###
 
 # 9.3.1.1
-function _validate(x::Vector, schema, ::Val{:items}, val::AbstractDict, path::String)
+function _validate(
+    x::Vector,
+    schema,
+    ::Val{:items},
+    val::AbstractDict,
+    path::String,
+)
     items = fill(false, length(x))
     for (i, xi) in enumerate(x)
         ret = _validate(xi, val, path * "[$(i)]")
@@ -177,11 +192,12 @@ function _validate(x::Vector, schema, ::Val{:items}, val::Vector, path::String)
 end
 
 function _validate(x::Vector, schema, ::Val{:items}, val::Bool, path::String)
-    return val || (!val && length(x) == 0) ? nothing : SingleIssue(x, path, "items", val)
+    return val || (!val && length(x) == 0) ? nothing :
+           SingleIssue(x, path, "items", val)
 end
 
 function _additional_items(x, schema, items, val, path)
-    for i = 1:length(x)
+    for i in 1:length(x)
         if items[i]
             continue  # Validated against 'items'.
         end
@@ -194,13 +210,20 @@ function _additional_items(x, schema, items, val, path)
 end
 
 function _additional_items(x, schema, items, val::Bool, path)
-    return !val && !all(items) ? SingleIssue(x, path, "additionalItems", val) : nothing
+    return !val && !all(items) ? SingleIssue(x, path, "additionalItems", val) :
+           nothing
 end
 
 _additional_items(x, schema, items, val::Nothing, path) = nothing
 
 # 9.3.1.2
-function _validate(x::Vector, schema, ::Val{:additionalItems}, val, path::String)
+function _validate(
+    x::Vector,
+    schema,
+    ::Val{:additionalItems},
+    val,
+    path::String,
+)
     return  # Supported in `items`.
 end
 
@@ -222,7 +245,13 @@ end
 ###
 
 # 9.3.2.1
-function _validate(x::AbstractDict, schema, ::Val{:properties}, val::AbstractDict, path::String)
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:properties},
+    val::AbstractDict,
+    path::String,
+)
     for (k, v) in x
         if haskey(val, k)
             ret = _validate(v, val[k], path * "[$(k)]")
@@ -235,7 +264,13 @@ function _validate(x::AbstractDict, schema, ::Val{:properties}, val::AbstractDic
 end
 
 # 9.3.2.2
-function _validate(x::AbstractDict, schema, ::Val{:patternProperties}, val::AbstractDict, path::String)
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:patternProperties},
+    val::AbstractDict,
+    path::String,
+)
     for (k_val, v_val) in val
         r = Regex(k_val)
         for (k_x, v_x) in x
@@ -252,11 +287,18 @@ function _validate(x::AbstractDict, schema, ::Val{:patternProperties}, val::Abst
 end
 
 # 9.3.2.3
-function _validate(x::AbstractDict, schema, ::Val{:additionalProperties}, val::AbstractDict, path::String)
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:additionalProperties},
+    val::AbstractDict,
+    path::String,
+)
     properties = get(schema, "properties", Dict{String,Any}())
     patternProperties = get(schema, "patternProperties", Dict{String,Any}())
     for (k, v) in x
-        if k in keys(properties) || any(r -> match(Regex(r), k) !== nothing, keys(patternProperties))
+        if k in keys(properties) ||
+           any(r -> match(Regex(r), k) !== nothing, keys(patternProperties))
             continue
         end
         ret = _validate(v, val, path * "[$(k)]")
@@ -267,14 +309,21 @@ function _validate(x::AbstractDict, schema, ::Val{:additionalProperties}, val::A
     return
 end
 
-function _validate(x::AbstractDict, schema, ::Val{:additionalProperties}, val::Bool, path::String)
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:additionalProperties},
+    val::Bool,
+    path::String,
+)
     if val
         return
     end
     properties = get(schema, "properties", Dict{String,Any}())
     patternProperties = get(schema, "patternProperties", Dict{String,Any}())
     for (k, v) in x
-        if k in keys(properties) || any(r -> match(Regex(r), k) !== nothing, keys(patternProperties))
+        if k in keys(properties) ||
+           any(r -> match(Regex(r), k) !== nothing, keys(patternProperties))
             continue
         end
         return SingleIssue(x, path, "additionalProperties", val)
@@ -285,7 +334,13 @@ end
 # 9.3.2.4: unevaluatedProperties
 
 # 9.3.2.5
-function _validate(x::AbstractDict, schema, ::Val{:propertyNames}, val, path::String)
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:propertyNames},
+    val,
+    path::String,
+)
     for k in keys(x)
         ret = _validate(k, val, path)
         if ret !== nothing
@@ -301,7 +356,8 @@ end
 
 # 6.1.1
 function _validate(x, schema, ::Val{:type}, val::String, path::String)
-    return !_is_type(x, Val{Symbol(val)}()) ? SingleIssue(x, path, "type", val) : nothing
+    return !_is_type(x, Val{Symbol(val)}()) ?
+           SingleIssue(x, path, "type", val) : nothing
 end
 
 function _validate(x, schema, ::Val{:type}, val::Vector, path::String)
@@ -326,7 +382,8 @@ _is_type(::Bool, ::Val{:integer}) = false
 
 # 6.1.2
 function _validate(x, schema, ::Val{:enum}, val, path::String)
-    return !any(x == v for v in val) ? SingleIssue(x, path, "enum", val) : nothing
+    return !any(x == v for v in val) ? SingleIssue(x, path, "enum", val) :
+           nothing
 end
 
 # 6.1.3
@@ -339,22 +396,46 @@ end
 ###
 
 # 6.2.1
-function _validate(x::Number, schema, ::Val{:multipleOf}, val::Number, path::String)
+function _validate(
+    x::Number,
+    schema,
+    ::Val{:multipleOf},
+    val::Number,
+    path::String,
+)
     y = isapprox(x / val, round(x / val))
     return !y ? SingleIssue(x, path, "multipleOf", val) : nothing
 end
 
 # 6.2.2
-function _validate(x::Number, schema, ::Val{:maximum}, val::Number, path::String)
+function _validate(
+    x::Number,
+    schema,
+    ::Val{:maximum},
+    val::Number,
+    path::String,
+)
     return x > val ? SingleIssue(x, path, "maximum", val) : nothing
 end
 
 # 6.2.3
-function _validate(x::Number, schema, ::Val{:exclusiveMaximum}, val::Number, path::String)
+function _validate(
+    x::Number,
+    schema,
+    ::Val{:exclusiveMaximum},
+    val::Number,
+    path::String,
+)
     return x >= val ? SingleIssue(x, path, "exclusiveMaximum", val) : nothing
 end
 
-function _validate(x::Number, schema, ::Val{:exclusiveMaximum}, val::Bool, path::String)
+function _validate(
+    x::Number,
+    schema,
+    ::Val{:exclusiveMaximum},
+    val::Bool,
+    path::String,
+)
     if !val
         return
     end
@@ -363,16 +444,34 @@ function _validate(x::Number, schema, ::Val{:exclusiveMaximum}, val::Bool, path:
 end
 
 # 6.2.4
-function _validate(x::Number, schema, ::Val{:minimum}, val::Number, path::String)
+function _validate(
+    x::Number,
+    schema,
+    ::Val{:minimum},
+    val::Number,
+    path::String,
+)
     return x < val ? SingleIssue(x, path, "minimum", val) : nothing
 end
 
 # 6.2.5
-function _validate(x::Number, schema, ::Val{:exclusiveMinimum}, val::Number, path::String)
+function _validate(
+    x::Number,
+    schema,
+    ::Val{:exclusiveMinimum},
+    val::Number,
+    path::String,
+)
     return x <= val ? SingleIssue(x, path, "exclusiveMinimum", val) : nothing
 end
 
-function _validate(x::Number, schema, ::Val{:exclusiveMinimum}, val::Bool, path::String)
+function _validate(
+    x::Number,
+    schema,
+    ::Val{:exclusiveMinimum},
+    val::Bool,
+    path::String,
+)
     if !val
         return
     end
@@ -380,23 +479,40 @@ function _validate(x::Number, schema, ::Val{:exclusiveMinimum}, val::Bool, path:
     return x <= max ? SingleIssue(x, path, "exclusiveMinimum", val) : nothing
 end
 
-
 ###
 ### Checks for strings.
 ###
 
 # 6.3.1
-function _validate(x::String, schema, ::Val{:maxLength}, val::Integer, path::String)
+function _validate(
+    x::String,
+    schema,
+    ::Val{:maxLength},
+    val::Integer,
+    path::String,
+)
     return length(x) > val ? SingleIssue(x, path, "maxLength", val) : nothing
 end
 
 # 6.3.2
-function _validate(x::String, schema, ::Val{:minLength}, val::Integer, path::String)
+function _validate(
+    x::String,
+    schema,
+    ::Val{:minLength},
+    val::Integer,
+    path::String,
+)
     return length(x) < val ? SingleIssue(x, path, "minLength", val) : nothing
 end
 
 # 6.3.3
-function _validate(x::String, schema, ::Val{:pattern}, val::String, path::String)
+function _validate(
+    x::String,
+    schema,
+    ::Val{:pattern},
+    val::String,
+    path::String,
+)
     y = occursin(Regex(val), x)
     return !y ? SingleIssue(x, path, "pattern", val) : nothing
 end
@@ -406,21 +522,40 @@ end
 ###
 
 # 6.4.1
-function _validate(x::Vector, schema, ::Val{:maxItems}, val::Integer, path::String)
+function _validate(
+    x::Vector,
+    schema,
+    ::Val{:maxItems},
+    val::Integer,
+    path::String,
+)
     return length(x) > val ? SingleIssue(x, path, "maxItems", val) : nothing
 end
 
 # 6.4.2
-function _validate(x::Vector, schema, ::Val{:minItems}, val::Integer, path::String)
+function _validate(
+    x::Vector,
+    schema,
+    ::Val{:minItems},
+    val::Integer,
+    path::String,
+)
     return length(x) < val ? SingleIssue(x, path, "minItems", val) : nothing
 end
 
 # 6.4.3
-function _validate(x::Vector, schema, ::Val{:uniqueItems}, val::Bool, path::String)
+function _validate(
+    x::Vector,
+    schema,
+    ::Val{:uniqueItems},
+    val::Bool,
+    path::String,
+)
     # It isn't sufficient to just compare allunique on x, because Julia treats 0 == false,
     # but JSON distinguishes them.
     y = [(xx, typeof(xx)) for xx in x]
-    return val && !allunique(y) ? SingleIssue(x, path, "uniqueItems", val) : nothing
+    return val && !allunique(y) ? SingleIssue(x, path, "uniqueItems", val) :
+           nothing
 end
 
 # 6.4.4: maxContains
@@ -432,22 +567,49 @@ end
 ###
 
 # 6.5.1
-function _validate(x::AbstractDict, schema, ::Val{:maxProperties}, val::Integer, path::String)
-    return length(x) > val ? SingleIssue(x, path, "maxProperties", val) : nothing
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:maxProperties},
+    val::Integer,
+    path::String,
+)
+    return length(x) > val ? SingleIssue(x, path, "maxProperties", val) :
+           nothing
 end
 
 # 6.5.2
-function _validate(x::AbstractDict, schema, ::Val{:minProperties}, val::Integer, path::String)
-    return length(x) < val ? SingleIssue(x, path, "minProperties", val) : nothing
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:minProperties},
+    val::Integer,
+    path::String,
+)
+    return length(x) < val ? SingleIssue(x, path, "minProperties", val) :
+           nothing
 end
 
 # 6.5.3
-function _validate(x::AbstractDict, schema, ::Val{:required}, val::Vector, path::String)
-    return any(v -> !haskey(x, v), val) ? SingleIssue(x, path, "required", val) : nothing
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:required},
+    val::Vector,
+    path::String,
+)
+    return any(v -> !haskey(x, v), val) ?
+           SingleIssue(x, path, "required", val) : nothing
 end
 
 # 6.5.4
-function _validate(x::AbstractDict, schema, ::Val{:dependencies}, val::AbstractDict, path::String)
+function _validate(
+    x::AbstractDict,
+    schema,
+    ::Val{:dependencies},
+    val::AbstractDict,
+    path::String,
+)
     for (k, v) in val
         if !haskey(x, k)
             continue
@@ -461,4 +623,6 @@ end
 function _dependencies(x::AbstractDict, path::String, val::Union{Bool,Dict})
     return _validate(x, val, path) === nothing
 end
-_dependencies(x::AbstractDict, path::String, val::Array) = all(v -> haskey(x, v), val)
+function _dependencies(x::AbstractDict, path::String, val::Array)
+    return all(v -> haskey(x, v), val)
+end

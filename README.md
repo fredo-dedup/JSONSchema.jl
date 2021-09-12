@@ -7,12 +7,14 @@ _JSON instance validation using JSON Schemas_
 
 ## Overview
 
-[JSONSchema.jl](https://github.com/fredo-dedup/JSONSchema.jl) is a JSON validation package
-for the [julia](https://julialang.org/) programming language. Given a [validation
-schema](http://json-schema.org/specification.html) this package can verify if any JSON
-instance meets all the assertions defining a valid document.
+[JSONSchema.jl](https://github.com/fredo-dedup/JSONSchema.jl) is a JSON
+validation package for the [julia](https://julialang.org/) programming language.
+Given a [validation schema](http://json-schema.org/specification.html) this
+package can verify if any JSON instance meets all the assertions defining a
+valid document.
 
-This package has been validated with the [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite)
+This package has been validated with the
+[JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite)
 for draft v4 and v6.
 
 ## API
@@ -44,25 +46,26 @@ or by passing a parsed JSON file containing the schema:
 julia> my_schema = Schema(JSON.parsefile(filename))
 ```
 
-Check the validity of a given JSON instance by calling `validate` with the JSON instance `x`
-to be tested and the `schema`. If the validation succeeds, `validate` returns `nothing`:
+Check the validity of a given JSON instance by calling `validate` with the JSON
+instance `x` to be tested and the `schema`. If the validation succeeds,
+`validate` returns `nothing`:
 ```julia
 julia> data_pass = Dict("foo" => true)
 Dict{String,Bool} with 1 entry:
   "foo" => true
 
-julia> validate(data_pass, my_schema)
+julia> validate(my_schema, data_pass)
 
 ```
 
-If the validation fails, a struct is returned that, when printed, explains the reason for
-the failure:
+If the validation fails, a struct is returned that, when printed, explains the
+reason for the failure:
 ```julia
 julia> data_fail = Dict("bar" => 12.5)
 Dict{String,Float64} with 1 entry:
   "bar" => 12.5
 
-julia> validate(data_fail, my_schema)
+julia> validate(my_schema, data_fail)
 Validation failed:
 path:         top-level
 instance:     Dict("bar"=>12.5)
@@ -70,4 +73,5 @@ schema key:   required
 schema value: ["foo"]
 ```
 
-As a short-hand for `validate(x, schema) === nothing`, use `Base.isvalid(x, schema)`.
+As a short-hand for `validate(schema, x) === nothing`, use
+`Base.isvalid(schema, x)`.

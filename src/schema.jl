@@ -1,9 +1,21 @@
+# Transform escaped characters in JPaths back to their original value.
+function unescape_jpath(raw::String)
+    ret = replace(replace(raw, "~0" => "~"), "~1" => "/")
+    m = match(r"%([0-9A-F]{2})", ret)
+    if m !== nothing
+        for c in m.captures
+            ret = replace(ret, "%$(c)" => Char(parse(UInt8, "0x$(c)")))
+        end
+    end
+    return ret
+end
+
 function type_to_dict(x)
     return Dict(name => getfield(x, name) for name in fieldnames(typeof(x)))
 end
 
-function update_id(uri::HTTP.URI, s::String)
-    id2 = HTTP.URI(s)
+function update_id(uri::URIs.URI, s::String)
+    id2 = URIs.URI(s)
     if !isempty(id2.scheme)
         return id2
     end
@@ -12,12 +24,43 @@ function update_id(uri::HTTP.URI, s::String)
     els[:fragment] = id2.fragment
     if !isempty(id2.path)
         oldpath = match(r"^(.*/).*$", uri.path)
-        els[:path] = oldpath === nothing ? id2.path : oldpath.captures[1] * id2.path
+        els[:path] =
+            oldpath == nothing ? id2.path : oldpath.captures[1] * id2.path
     end
-    return HTTP.URI(; els...)
+    return URIs.URI(; els...)
 end
 
-function get_remote_schema(uri::HTTP.URI)
+function get_element(schema, path::AbstractString)
+    for element in split(path, "/"; keepempty = false)
+        schema = _recurse_get_element(schema, unescape_jpath(String(element)))
+    end
+    return schema
+end
+
+function _recurse_get_element(schema::Any, ::String)
+    return error(
+        "unmanaged type in ref resolution $(typeof(schema)): $(schema).",
+    )
+end
+
+function _recurse_get_element(schema::AbstractDict, element::String)
+    if !haskey(schema, element)
+        error("missing property '$(element)' in $(schema).")
+    end
+    return schema[element]
+end
+
+function _recurse_get_element(schema::Vector, element::String)
+    index = tryparse(Int, element)  # Remember that `index` is 0-indexed!
+    if index === nothing
+        error("expected integer array index instead of '$(element)'.")
+    elseif index >= length(schema)
+        error("item index $(index) is larger than array $(schema).")
+    end
+    return schema[index+1]
+end
+
+function get_remote_schema(uri::URIs.URI)
     r = HTTP.get(uri)
     if r.status != 200
         error("Unable to get remote schema at $uri. HTTP status = $(r.status)")
@@ -26,22 +69,24 @@ function get_remote_schema(uri::HTTP.URI)
 end
 
 function find_ref(
-    uri::HTTP.URI, id_map::AbstractDict, path::String, parent_dir::String
+    uri::URIs.URI,
+    id_map::AbstractDict,
+    path::String,
+    parent_dir::String,
 )
     if path == "" || path == "#"  # This path refers to the root schema.
         return id_map[string(uri)]
     elseif startswith(path, "#/")  # This path is a JPointer.
-        p = JSONPointer.Pointer(path; shift_index = true)
-        return id_map[string(uri)][p]
+        return get_element(id_map[string(uri)], path[3:end])
     end
     uri = update_id(uri, path)
     els = type_to_dict(uri)
     delete!.(Ref(els), [:uri, :fragment])
-    uri2 = HTTP.URI(; els...)
+    uri2 = URIs.URI(; els...)
     is_file_uri = startswith(uri2.scheme, "file") || isempty(uri2.scheme)
     if is_file_uri && !isabspath(uri2.path)
         # Normalize a file path to an absolute path so creating a key is consistent.
-        uri2 = HTTP.URIs.merge(uri2; path = abspath(joinpath(parent_dir, uri2.path)))
+        uri2 = URIs.URI(uri2; path = abspath(joinpath(parent_dir, uri2.path)))
     end
     if !haskey(id_map, string(uri2))
         # id_map doesn't have this key so, fetch the ref and add it to id_map.
@@ -51,23 +96,24 @@ function find_ref(
         else
             @assert is_file_uri
             @info("loading local ref $(uri2)")
-            Schema(JSON.parsefile(uri2.path); parent_dir = dirname(uri2.path)).data
+            Schema(
+                JSON.parsefile(uri2.path);
+                parent_dir = dirname(uri2.path),
+            ).data
         end
     end
-
-    p = JSONPointer.Pointer(uri.fragment; shift_index = true)
-    return id_map[string(uri2)][p]
+    return get_element(id_map[string(uri2)], uri.fragment)
 end
 
 # Recursively find all "$ref" fields and resolve their path.
 
-resolve_refs!(::Any, ::HTTP.URI, ::AbstractDict, ::String) = nothing
+resolve_refs!(::Any, ::URIs.URI, ::AbstractDict, ::String) = nothing
 
 function resolve_refs!(
     schema::Vector,
-    uri::HTTP.URI,
+    uri::URIs.URI,
     id_map::AbstractDict,
-    parent_dir::String
+    parent_dir::String,
 )
     for s in schema
         resolve_refs!(s, uri, id_map, parent_dir)
@@ -77,9 +123,9 @@ end
 
 function resolve_refs!(
     schema::AbstractDict,
-    uri::HTTP.URI,
+    uri::URIs.URI,
     id_map::AbstractDict,
-    parent_dir::String
+    parent_dir::String,
 )
     if haskey(schema, "id") && schema["id"] isa String
         # This block is for draft 4.
@@ -104,19 +150,23 @@ function resolve_refs!(
 end
 
 function build_id_map(schema::AbstractDict)
-    id_map = Dict{String, Any}("" => schema)
-    build_id_map!(id_map, schema, HTTP.URI())
+    id_map = Dict{String,Any}("" => schema)
+    build_id_map!(id_map, schema, URIs.URI())
     return id_map
 end
 
-build_id_map!(::AbstractDict, ::Any, ::HTTP.URI) = nothing
+build_id_map!(::AbstractDict, ::Any, ::URIs.URI) = nothing
 
-function build_id_map!(id_map::AbstractDict, schema::Vector, uri::HTTP.URI)
+function build_id_map!(id_map::AbstractDict, schema::Vector, uri::URIs.URI)
     build_id_map!.(Ref(id_map), schema, Ref(uri))
     return
 end
 
-function build_id_map!(id_map::AbstractDict, schema::AbstractDict, uri::HTTP.URI)
+function build_id_map!(
+    id_map::AbstractDict,
+    schema::AbstractDict,
+    uri::URIs.URI,
+)
     if haskey(schema, "id") && schema["id"] isa String
         # This block is for draft 4.
         uri = update_id(uri, schema["id"])
@@ -148,7 +198,7 @@ Create a schema but with `schema` being a parsed JSON created with `JSON.parse()
     my_schema = Schema(JSON.parsefile(filename); parent_dir = "~/schemas")
 """
 struct Schema
-    data::Union{AbstractDict, Bool}
+    data::Union{AbstractDict,Bool}
 
     Schema(schema::Bool; kwargs...) = new(schema)
 
@@ -158,12 +208,14 @@ struct Schema
         parentFileDirectory = nothing,
     )
         if parentFileDirectory !== nothing
-            @warn("kwarg `parentFileDirectory` is deprecated. Use `parent_dir` instead.")
+            @warn(
+                "kwarg `parentFileDirectory` is deprecated. Use `parent_dir` instead."
+            )
             parent_dir = parentFileDirectory
         end
         schema = deepcopy(schema)  # Ensure we don't modify the user's data!
         id_map = build_id_map(schema)
-        resolve_refs!(schema, HTTP.URI(), id_map, parent_dir)
+        resolve_refs!(schema, URIs.URI(), id_map, parent_dir)
         return new(schema)
     end
 end
