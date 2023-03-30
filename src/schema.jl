@@ -50,7 +50,7 @@ function _recurse_get_element(schema::AbstractDict, element::String)
     return schema[element]
 end
 
-function _recurse_get_element(schema::Vector, element::String)
+function _recurse_get_element(schema::AbstractVector, element::String)
     index = tryparse(Int, element)  # Remember that `index` is 0-indexed!
     if index === nothing
         error("expected integer array index instead of '$(element)'.")
@@ -110,7 +110,7 @@ end
 resolve_refs!(::Any, ::URIs.URI, ::AbstractDict, ::String) = nothing
 
 function resolve_refs!(
-    schema::Vector,
+    schema::AbstractVector,
     uri::URIs.URI,
     id_map::AbstractDict,
     parent_dir::String,
@@ -157,7 +157,7 @@ end
 
 build_id_map!(::AbstractDict, ::Any, ::URIs.URI) = nothing
 
-function build_id_map!(id_map::AbstractDict, schema::Vector, uri::URIs.URI)
+function build_id_map!(id_map::AbstractDict, schema::AbstractVector, uri::URIs.URI)
     build_id_map!.(Ref(id_map), schema, Ref(uri))
     return
 end

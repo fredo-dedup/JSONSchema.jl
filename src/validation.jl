@@ -105,7 +105,7 @@ _validate(::Any, ::Any, ::Val, ::Any, ::String) = nothing
 ###
 
 # 9.2.1.1
-function _validate(x, schema, ::Val{:allOf}, val::Vector, path::String)
+function _validate(x, schema, ::Val{:allOf}, val::AbstractVector, path::String)
     for v in val
         ret = _validate(x, v, path)
         if ret !== nothing
@@ -116,7 +116,7 @@ function _validate(x, schema, ::Val{:allOf}, val::Vector, path::String)
 end
 
 # 9.2.1.2
-function _validate(x, schema, ::Val{:anyOf}, val::Vector, path::String)
+function _validate(x, schema, ::Val{:anyOf}, val::AbstractVector, path::String)
     for v in val
         if _validate(x, v, path) === nothing
             return
@@ -126,7 +126,7 @@ function _validate(x, schema, ::Val{:anyOf}, val::Vector, path::String)
 end
 
 # 9.2.1.3
-function _validate(x, schema, ::Val{:oneOf}, val::Vector, path::String)
+function _validate(x, schema, ::Val{:oneOf}, val::AbstractVector, path::String)
     found_match = false
     for v in val
         if _validate(x, v, path) === nothing
@@ -157,7 +157,7 @@ end
 
 # 9.3.1.1
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:items},
     val::AbstractDict,
@@ -175,7 +175,7 @@ function _validate(
     return _additional_items(x, schema, items, additionalItems, path)
 end
 
-function _validate(x::Vector, schema, ::Val{:items}, val::Vector, path::String)
+function _validate(x::AbstractVector, schema, ::Val{:items}, val::AbstractVector, path::String)
     items = fill(false, length(x))
     for (i, xi) in enumerate(x)
         if i > length(val)
@@ -191,7 +191,7 @@ function _validate(x::Vector, schema, ::Val{:items}, val::Vector, path::String)
     return _additional_items(x, schema, items, additionalItems, path)
 end
 
-function _validate(x::Vector, schema, ::Val{:items}, val::Bool, path::String)
+function _validate(x::AbstractVector, schema, ::Val{:items}, val::Bool, path::String)
     return val || (!val && length(x) == 0) ? nothing :
            SingleIssue(x, path, "items", val)
 end
@@ -218,7 +218,7 @@ _additional_items(x, schema, items, val::Nothing, path) = nothing
 
 # 9.3.1.2
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:additionalItems},
     val,
@@ -230,7 +230,7 @@ end
 # 9.3.1.3: unevaluatedProperties
 
 # 9.3.1.4
-function _validate(x::Vector, schema, ::Val{:contains}, val, path::String)
+function _validate(x::AbstractVector, schema, ::Val{:contains}, val, path::String)
     for (i, xi) in enumerate(x)
         ret = _validate(xi, val, path * "[$(i)]")
         if ret === nothing
@@ -360,7 +360,7 @@ function _validate(x, schema, ::Val{:type}, val::String, path::String)
            SingleIssue(x, path, "type", val) : nothing
 end
 
-function _validate(x, schema, ::Val{:type}, val::Vector, path::String)
+function _validate(x, schema, ::Val{:type}, val::AbstractVector, path::String)
     if !any(v -> _is_type(x, Val{Symbol(v)}()), val)
         return SingleIssue(x, path, "type", val)
     end
@@ -523,7 +523,7 @@ end
 
 # 6.4.1
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:maxItems},
     val::Integer,
@@ -534,7 +534,7 @@ end
 
 # 6.4.2
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:minItems},
     val::Integer,
@@ -545,7 +545,7 @@ end
 
 # 6.4.3
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:uniqueItems},
     val::Bool,
@@ -595,7 +595,7 @@ function _validate(
     x::AbstractDict,
     schema,
     ::Val{:required},
-    val::Vector,
+    val::AbstractVector,
     path::String,
 )
     return any(v -> !haskey(x, v), val) ?
@@ -620,7 +620,7 @@ function _validate(
     return
 end
 
-function _dependencies(x::AbstractDict, path::String, val::Union{Bool,Dict})
+function _dependencies(x::AbstractDict, path::String, val::Union{Bool,AbstractDict})
     return _validate(x, val, path) === nothing
 end
 function _dependencies(x::AbstractDict, path::String, val::Array)
