@@ -137,24 +137,16 @@ write(
     # testsets, and I spent far too long trying to figure out what was going on.
     # This is a simple hack until someone who knows more about this comes along...
     GLOBAL_TEST_DIR = Ref{String}("")
-    server = HTTP.Sockets.listen(
-        HTTP.Sockets.InetAddr(parse(HTTP.Sockets.IPAddr, "127.0.0.1"), 1234),
-    )
-    @async HTTP.listen(
-        "127.0.0.1",
-        1234;
-        server = server,
-    ) do http
+    server = HTTP.Sockets.listen(HTTP.ip"127.0.0.1", 1234)
+    HTTP.serve!("127.0.0.1", 1234; server = server) do request
         # Make sure to strip first character (`/`) from the target, otherwise it will
         # infer as a file in the root directory.
         file = joinpath(
             GLOBAL_TEST_DIR[],
             "../../remotes",
-            http.message.target[2:end],
+            request.target[2:end],
         )
-        HTTP.setstatus(http, 200)
-        HTTP.startwrite(http)
-        return write(http, read(file, String))
+        return HTTP.Response(200, read(file, String))
     end
     @testset "$(draft_folder)" for draft_folder in [
         "draft4",
