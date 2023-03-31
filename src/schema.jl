@@ -189,18 +189,20 @@ function build_id_map!(
 end
 
 """
-
     Schema(schema::AbstractDict; parent_dir::String = abspath("."))
 
-Create a schema but with `schema` being a parsed JSON created with `JSON.parse()` or
-`JSON.parsefile()`.
+Create a schema but with `schema` being a parsed JSON created with `JSON.parse()`
+or `JSON.parsefile()`.
 
-`parent_dir` is the path with respect to which references to local schemas are resolved.
+`parent_dir` is the path with respect to which references to local schemas are
+resolved.
 
 ## Examples
 
-    my_schema = Schema(JSON.parsefile(filename))
-    my_schema = Schema(JSON.parsefile(filename); parent_dir = "~/schemas")
+```julia
+my_schema = Schema(JSON.parsefile(filename))
+my_schema = Schema(JSON.parsefile(filename); parent_dir = "~/schemas")
+```
 """
 struct Schema
     data::Union{AbstractDict,Bool}
@@ -230,25 +232,28 @@ end
 
 Create a schema for document validation by parsing the string `schema`.
 
-`parent_dir` is the path with respect to which references to local schemas are resolved.
+`parent_dir` is the path with respect to which references to local schemas are
+resolved.
 
 ## Examples
 
-    my_schema = Schema(\"\"\"{
-        \"properties\": {
-            \"foo\": {},
-            \"bar\": {}
-        },
-        \"required\": [\"foo\"]
-    }\"\"\")
+```julia
+my_schema = Schema(\"\"\"{
+    \"properties\": {
+        \"foo\": {},
+        \"bar\": {}
+    },
+    \"required\": [\"foo\"]
+}\"\"\")
 
-    # Assume there exists `~/schemas/local_file.json`:
-    my_schema = Schema(
-        \"\"\"{
-            "\$ref": "local_file.json"
-        }\"\"\",
-        parent_dir = "~/schemas"
-    )
+# Assume there exists `~/schemas/local_file.json`:
+my_schema = Schema(
+    \"\"\"{
+        "\$ref": "local_file.json"
+    }\"\"\",
+    parent_dir = "~/schemas"
+)
+```
 """
 Schema(schema::String; kwargs...) = Schema(JSON.parse(schema); kwargs...)
 

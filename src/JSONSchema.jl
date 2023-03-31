@@ -5,7 +5,7 @@
 
 module JSONSchema
 
-using JSON
+import JSON
 import HTTP
 import URIs
 

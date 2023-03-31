@@ -3,19 +3,20 @@
 # Use of this source code is governed by an MIT-style license that can be found
 # in the LICENSE.md file or at https://opensource.org/licenses/MIT.
 
-using HTTP
 using JSONSchema
-using JSON
 using Test
-using ZipFile
-using OrderedCollections
+import Downloads
+import HTTP
+import JSON
+import OrderedCollections
+import ZipFile
 
 const TEST_SUITE_URL = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/2.0.0.zip"
 
 const SCHEMA_TEST_DIR = let
     dest_dir = mktempdir()
     dest_file = joinpath(dest_dir, "test-suite.zip")
-    download(TEST_SUITE_URL, dest_file)
+    Downloads.download(TEST_SUITE_URL, dest_file)
     for f in ZipFile.Reader(dest_file).files
         filename = joinpath(dest_dir, "test-suite", f.name)
         if endswith(filename, "/")
@@ -136,25 +137,12 @@ write(
     # testsets, and I spent far too long trying to figure out what was going on.
     # This is a simple hack until someone who knows more about this comes along...
     GLOBAL_TEST_DIR = Ref{String}("")
-    server = HTTP.Sockets.listen(
-        HTTP.Sockets.InetAddr(parse(HTTP.Sockets.IPAddr, "127.0.0.1"), 1234),
-    )
-    @async HTTP.listen(
-        "127.0.0.1",
-        1234;
-        server = server,
-        verbose = true,
-    ) do http
-        # Make sure to strip first character (`/`) from the target, otherwise it will
-        # infer as a file in the root directory.
-        file = joinpath(
-            GLOBAL_TEST_DIR[],
-            "../../remotes",
-            http.message.target[2:end],
-        )
-        HTTP.setstatus(http, 200)
-        startwrite(http)
-        return write(http, read(file, String))
+    server = HTTP.Sockets.listen(HTTP.ip"127.0.0.1", 1234)
+    HTTP.serve!("127.0.0.1", 1234; server = server) do req
+        # Make sure to strip first character (`/`) from the target, otherwise it
+        # will infer as a file in the root directory.
+        file = joinpath(GLOBAL_TEST_DIR[], "../../remotes", req.target[2:end])
+        return HTTP.Response(200, read(file, String))
     end
     @testset "$(draft_folder)" for draft_folder in [
         "draft4",
@@ -170,7 +158,7 @@ write(
             file_path = joinpath(test_dir, file)
             @testset "$(schema["description"])" for schema in
                                                     JSON.parsefile(file_path)
-                spec = Schema(
+                spec = JSONSchema.Schema(
                     schema["schema"];
                     parent_dir = schema["schema"] isa Bool ? abspath(".") :
                                  dirname(file_path),
@@ -185,7 +173,7 @@ write(
 end
 
 @testset "Validate and diagnose" begin
-    schema = Schema(
+    schema = JSONSchema.Schema(
         Dict(
             "properties" => Dict("foo" => Dict(), "bar" => Dict()),
             "required" => ["foo"],
@@ -203,17 +191,17 @@ end
     """
     @test ret !== nothing
     @test sprint(show, ret) == fail_msg
-    @test diagnose(data_pass, schema) === nothing
-    @test diagnose(data_fail, schema) == fail_msg
+    @test JSONSchema.diagnose(data_pass, schema) === nothing
+    @test JSONSchema.diagnose(data_fail, schema) == fail_msg
 end
 
 @testset "parentFileDirectory deprecation" begin
-    schema = Schema("{}"; parentFileDirectory = ".")
+    schema = JSONSchema.Schema("{}"; parentFileDirectory = ".")
     @test typeof(schema) == Schema
 end
 
 @testset "Schemas" begin
-    schema = Schema("""{
+    schema = JSONSchema.Schema("""{
         \"properties\": {
         \"foo\": {},
         \"bar\": {}
@@ -222,21 +210,20 @@ end
     }""")
     @test typeof(schema) == Schema
     @test typeof(schema.data) == Dict{String,Any}
-
-    schema_2 = Schema(false)
+    schema_2 = JSONSchema.Schema(false)
     @test typeof(schema_2) == Schema
     @test typeof(schema_2.data) == Bool
 end
 
 @testset "Base.show" begin
-    schema = Schema("{}")
+    schema = JSONSchema.Schema("{}")
     @test sprint(show, schema) == "A JSONSchema"
 end
 
 @testset "errors" begin
     @test_throws(
         ErrorException("missing property 'Foo' in $(Dict{String,Any}())."),
-        Schema("""{
+        JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
             "definitions": {}
@@ -245,7 +232,7 @@ end
 
     @test_throws(
         ErrorException("unmanaged type in ref resolution $(Int64): 1."),
-        Schema("""{
+        JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
             "definitions": 1
@@ -253,7 +240,7 @@ end
     )
     @test_throws(
         ErrorException("expected integer array index instead of 'Foo'."),
-        Schema("""{
+        JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
             "definitions": [1, 2]
@@ -261,7 +248,7 @@ end
     )
     @test_throws(
         ErrorException("item index 3 is larger than array $(Any[1, 2])."),
-        Schema("""{
+        JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/3"}},
             "definitions": [1, 2]
@@ -269,8 +256,8 @@ end
     )
     @test_throws(
         ErrorException("cannot support circular references in schema."),
-        validate(
-            Schema("""{
+        JSONSchema.validate(
+            JSONSchema.Schema("""{
                 "type": "object",
                 "properties": {
                     "version": {
@@ -308,20 +295,20 @@ end
 end
 
 @testset "OrderedDict" begin
-    schema = Schema(
+    schema = JSONSchema.Schema(
         Dict(
             "properties" => Dict("foo" => Dict(), "bar" => Dict()),
             "required" => ["foo"],
         ),
     )
-    data_pass = OrderedDict("foo" => true)
-    data_fail = OrderedDict("bar" => 12.5)
+    data_pass = OrderedCollections.OrderedDict("foo" => true)
+    data_fail = OrderedCollections.OrderedDict("bar" => 12.5)
     @test JSONSchema.validate(schema, data_pass) === nothing
     @test JSONSchema.validate(schema, data_fail) != nothing
 end
 
 @testset "Inverse argument order" begin
-    schema = Schema(
+    schema = JSONSchema.Schema(
         Dict(
             "properties" => Dict("foo" => Dict(), "bar" => Dict()),
             "required" => ["foo"],
@@ -333,4 +320,10 @@ end
     @test JSONSchema.validate(data_fail, schema) != nothing
     @test isvalid(data_pass, schema)
     @test !isvalid(data_fail, schema)
+end
+
+@testset "exports" begin
+    @test Schema === JSONSchema.Schema
+    @test validate === JSONSchema.validate
+    @test diagnose === JSONSchema.diagnose
 end
