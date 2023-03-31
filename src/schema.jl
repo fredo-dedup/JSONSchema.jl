@@ -157,7 +157,11 @@ end
 
 build_id_map!(::AbstractDict, ::Any, ::URIs.URI) = nothing
 
-function build_id_map!(id_map::AbstractDict, schema::AbstractVector, uri::URIs.URI)
+function build_id_map!(
+    id_map::AbstractDict,
+    schema::AbstractVector,
+    uri::URIs.URI,
+)
     build_id_map!.(Ref(id_map), schema, Ref(uri))
     return
 end

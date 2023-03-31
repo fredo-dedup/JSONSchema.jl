@@ -175,7 +175,13 @@ function _validate(
     return _additional_items(x, schema, items, additionalItems, path)
 end
 
-function _validate(x::AbstractVector, schema, ::Val{:items}, val::AbstractVector, path::String)
+function _validate(
+    x::AbstractVector,
+    schema,
+    ::Val{:items},
+    val::AbstractVector,
+    path::String,
+)
     items = fill(false, length(x))
     for (i, xi) in enumerate(x)
         if i > length(val)
@@ -191,7 +197,13 @@ function _validate(x::AbstractVector, schema, ::Val{:items}, val::AbstractVector
     return _additional_items(x, schema, items, additionalItems, path)
 end
 
-function _validate(x::AbstractVector, schema, ::Val{:items}, val::Bool, path::String)
+function _validate(
+    x::AbstractVector,
+    schema,
+    ::Val{:items},
+    val::Bool,
+    path::String,
+)
     return val || (!val && length(x) == 0) ? nothing :
            SingleIssue(x, path, "items", val)
 end
@@ -230,7 +242,13 @@ end
 # 9.3.1.3: unevaluatedProperties
 
 # 9.3.1.4
-function _validate(x::AbstractVector, schema, ::Val{:contains}, val, path::String)
+function _validate(
+    x::AbstractVector,
+    schema,
+    ::Val{:contains},
+    val,
+    path::String,
+)
     for (i, xi) in enumerate(x)
         ret = _validate(xi, val, path * "[$(i)]")
         if ret === nothing
@@ -620,7 +638,11 @@ function _validate(
     return
 end
 
-function _dependencies(x::AbstractDict, path::String, val::Union{Bool,AbstractDict})
+function _dependencies(
+    x::AbstractDict,
+    path::String,
+    val::Union{Bool,AbstractDict},    
+)
     return _validate(x, val, path) === nothing
 end
 function _dependencies(x::AbstractDict, path::String, val::Array)
