@@ -1,3 +1,8 @@
+# Copyright (c) 2018: fredo-dedup and contributors
+#
+# Use of this source code is governed by an MIT-style license that can be found
+# in the LICENSE.md file or at https://opensource.org/licenses/MIT.
+
 # Transform escaped characters in JPaths back to their original value.
 function unescape_jpath(raw::String)
     ret = replace(replace(raw, "~0" => "~"), "~1" => "/")
