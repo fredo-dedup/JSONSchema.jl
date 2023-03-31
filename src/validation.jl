@@ -628,6 +628,7 @@ end
 function _dependencies(x::AbstractDict, path::String, val::Union{Bool,Dict})
     return _validate(x, val, path) === nothing
 end
+
 function _dependencies(x::AbstractDict, path::String, val::Array)
     return all(v -> haskey(x, v), val)
 end
