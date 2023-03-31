@@ -641,7 +641,7 @@ end
 function _dependencies(
     x::AbstractDict,
     path::String,
-    val::Union{Bool,AbstractDict},    
+    val::Union{Bool,AbstractDict},
 )
     return _validate(x, val, path) === nothing
 end
