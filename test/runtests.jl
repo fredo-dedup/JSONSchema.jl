@@ -138,14 +138,10 @@ write(
     # This is a simple hack until someone who knows more about this comes along...
     GLOBAL_TEST_DIR = Ref{String}("")
     server = HTTP.Sockets.listen(HTTP.ip"127.0.0.1", 1234)
-    HTTP.serve!("127.0.0.1", 1234; server = server) do request
-        # Make sure to strip first character (`/`) from the target, otherwise it will
-        # infer as a file in the root directory.
-        file = joinpath(
-            GLOBAL_TEST_DIR[],
-            "../../remotes",
-            request.target[2:end],
-        )
+    HTTP.serve!("127.0.0.1", 1234; server = server) do req
+        # Make sure to strip first character (`/`) from the target, otherwise it
+        # will infer as a file in the root directory.
+        file = joinpath(GLOBAL_TEST_DIR[], "../../remotes", req.target[2:end])
         return HTTP.Response(200, read(file, String))
     end
     @testset "$(draft_folder)" for draft_folder in [
