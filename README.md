@@ -46,11 +46,14 @@ or by passing a parsed JSON file containing the schema:
 julia> my_schema = Schema(JSON.parsefile(filename))
 ```
 
-Check the validity of a given JSON instance by calling `validate` with the JSON
-instance `x` to be tested and the `schema`. If the validation succeeds,
-`validate` returns `nothing`:
+Check the validity of a parsed JSON instance by calling `validate` with the JSON
+instance `x` to be tested and the `schema`.
+
+If the validation succeeds, `validate` returns `nothing`:
 ```julia
-julia> data_pass = Dict("foo" => true)
+julia> document = """{"foo": true}""";
+
+julia> data_pass = JSON.parse(document)
 Dict{String,Bool} with 1 entry:
   "foo" => true
 
@@ -74,4 +77,8 @@ schema value: ["foo"]
 ```
 
 As a short-hand for `validate(schema, x) === nothing`, use
-`Base.isvalid(schema, x)`.
+`Base.isvalid(schema, x)`
+
+Note that if `x` is a `String` in JSON format, you must use `JSON.parse(x)`
+before passing to `validate`, that is, JSONSchema operates on the parsed
+representation, not on the underlying `String` representation of the JSON data.

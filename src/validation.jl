@@ -24,9 +24,14 @@ end
 """
     validate(s::Schema, x)
 
-Validate document `x` is valid against the Schema `s`. If valid, return
-`nothing`, else return a `SingleIssue`. When printed, the returned `SingleIssue`
-describes the reason why the validation failed.
+Validate the object `x` against the Schema `s`. If valid, return `nothing`, else
+return a `SingleIssue`. When printed, the returned `SingleIssue` describes the
+reason why the validation failed.
+
+
+Note that if `x` is a `String` in JSON format, you must use `JSON.parse(x)`
+before passing to `validate`, that is, JSONSchema operates on the parsed
+representation, not on the underlying `String` representation of the JSON data.
 
 ## Examples
 
