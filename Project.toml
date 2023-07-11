@@ -1,10 +1,9 @@
 name = "JSONSchema"
 uuid = "7d188eb4-7ad8-530c-ae41-71a32a6d4692"
-version = "1.1.0"
+version = "1.2.0"
 
 [deps]
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
 
@@ -17,9 +16,10 @@ ZipFile = "0.8, 0.9, 0.10"
 julia = "1.6"
 
 [extras]
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
 [targets]
-test = ["Test", "OrderedCollections", "ZipFile"]
+test = ["HTTP", "OrderedCollections", "Test", "ZipFile"]
