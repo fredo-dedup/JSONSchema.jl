@@ -67,17 +67,17 @@ end
 
 function get_remote_schema(uri::URIs.URI)
     io = IOBuffer()
-    r = Downloads.request(string(uri); output=io, throw=false)
+    r = Downloads.request(string(uri); output = io, throw = false)
     if r isa Downloads.Response && r.status == 200
         return Schema(JSON.parse(seekstart(io)))
     end
     msg = "Unable to get remote schema at $uri"
     if r isa Downloads.RequestError
-        msg = msg * ": " * r.message
+        msg *= ": " * r.message
     elseif r isa Downloads.Response
-        msg = msg * ": HTTP status code $(r.status)"
+        msg *= ": HTTP status code $(r.status)"
     end
-    error(msg)
+    return error(msg)
 end
 
 function find_ref(
