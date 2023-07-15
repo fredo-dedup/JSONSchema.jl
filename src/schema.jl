@@ -66,11 +66,18 @@ function _recurse_get_element(schema::AbstractVector, element::String)
 end
 
 function get_remote_schema(uri::URIs.URI)
-    r = HTTP.get(uri)
-    if r.status != 200
-        error("Unable to get remote schema at $uri. HTTP status = $(r.status)")
+    io = IOBuffer()
+    r = Downloads.request(string(uri); output = io, throw = false)
+    if r isa Downloads.Response && r.status == 200
+        return Schema(JSON.parse(seekstart(io)))
     end
-    return Schema(JSON.parse(String(r.body)))
+    msg = "Unable to get remote schema at $uri"
+    if r isa Downloads.RequestError
+        msg *= ": " * r.message
+    elseif r isa Downloads.Response
+        msg *= ": HTTP status code $(r.status)"
+    end
+    return error(msg)
 end
 
 function find_ref(
