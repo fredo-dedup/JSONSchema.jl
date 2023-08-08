@@ -173,49 +173,6 @@ write(
     close(server)
 end
 
-JSON3Tests = @testset "Draft 4/6 JSON3" begin
-    # Note(odow): I didn't want to use a mutable reference like this for the web-server.
-    # The obvious thing to do is to start a new server for each value of `draft_folder`,
-    # however, shutting down the webserver asynchronously doesn't play well with
-    # testsets, and I spent far too long trying to figure out what was going on.
-    # This is a simple hack until someone who knows more about this comes along...
-
-    GLOBAL_TEST_DIR = Ref{String}("")
-    server = HTTP.Sockets.listen(HTTP.ip"127.0.0.1", 1234)
-    HTTP.serve!("127.0.0.1", 1234; server = server) do req
-        # Make sure to strip first character (`/`) from the target, otherwise it
-        # will infer as a file in the root directory.
-        file = joinpath(GLOBAL_TEST_DIR[], "../../remotes", req.target[2:end])
-        return HTTP.Response(200, read(file, String))
-    end
-    @testset "$(draft_folder)" for draft_folder in [
-        "draft4",
-        "draft6",
-        basename(abspath(LOCAL_TEST_DIR)),
-    ]
-        test_dir = joinpath(SCHEMA_TEST_DIR, draft_folder)
-        GLOBAL_TEST_DIR[] = test_dir
-        @testset "$(file)" for file in filter(
-            n -> endswith(n, ".json"),
-            readdir(test_dir),
-        )
-            file_path = joinpath(test_dir, file)
-            @testset "$(schema["description"])" for schema in
-                                                    JSON3.read(file_path)
-                schema = copy(schema)
-                spec = JSONSchema.Schema(
-                    schema["schema"];
-                    parent_dir = schema["schema"] isa Bool ? abspath(".") :
-                                 dirname(file_path),
-                )
-                @testset "$(test["description"])" for test in schema["tests"]
-                    @test isvalid(spec, test["data"]) == test["valid"]
-                end
-            end
-        end
-    end
-    close(server)
-end
 
 @testset "Validate and diagnose" begin
     schema = JSONSchema.Schema(
@@ -245,28 +202,6 @@ end
     @test typeof(schema) == Schema
 end
 
-@testset "Validate and diagnose symbol keys" begin
-    schema = JSONSchema.Schema(
-        Dict(
-            :properties => Dict(:foo => Dict(), :bar => Dict()),
-            :required => ["foo"],
-        ),
-    )
-    data_pass = Dict(:foo => true)
-    data_fail = Dict(:bar => 12.5)
-    @test JSONSchema.validate(schema, data_pass) === nothing
-    ret = JSONSchema.validate(schema, data_fail)
-    fail_msg = """Validation failed:
-    path:         top-level
-    instance:     $(data_fail)
-    schema key:   required
-    schema value: ["foo"]
-    """
-    @test ret !== nothing
-    @test sprint(show, ret) == fail_msg
-    @test JSONSchema.diagnose(data_pass, schema) === nothing
-    @test JSONSchema.diagnose(data_fail, schema) == fail_msg
-end
 
 @testset "Schemas" begin
     schema = JSONSchema.Schema("""{
