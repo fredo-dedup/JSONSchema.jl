@@ -7,6 +7,7 @@ module JSONSchema
 
 import Downloads
 import JSON
+import JSON3
 import URIs
 
 export Schema, validate

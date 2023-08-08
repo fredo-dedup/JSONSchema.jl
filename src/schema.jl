@@ -232,6 +232,22 @@ struct Schema
             parent_dir = parentFileDirectory
         end
         schema = deepcopy(schema)  # Ensure we don't modify the user's data!
+
+        # If the schema is a JSON3 object, it needs to be turned in to a mutable dict with copy
+        if schema isa JSON3.Object || schema isa JSON3.Array
+            schema = copy(schema)
+        end
+
+        # Keys need to be strings
+        if any(i -> i isa Symbol, keys(schema))
+            f_helper(x) = x
+            f_helper(d::AbstractDict) = Dict{String,Any}(string(k) => f_helper(v) for (k, v) in d)
+            f_helper(l::AbstractArray) = f_helper.(l)
+            string_dict(d::AbstractDict) = f_helper(d)
+            schema = string_dict(schema)
+        end
+        
+       
         id_map = build_id_map(schema)
         resolve_refs!(schema, URIs.URI(), id_map, parent_dir)
         return new(schema)

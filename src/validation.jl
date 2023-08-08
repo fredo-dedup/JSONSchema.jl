@@ -66,6 +66,22 @@ schema value: ["foo"]
 ```
 """
 function validate(schema::Schema, x)
+    x = deepcopy(x)
+    # If the thing to validate is from JSON3.jl, need it to be a regular dictionary
+    if x isa JSON3.Object || x isa JSON3.Array
+        x = copy(x)
+    end
+
+    # Need the dictionary to have string keys
+    if any(i -> i isa Symbol, keys(x))
+        #recursively makes a dictionary have string keys
+        f_helper(input) = input
+        f_helper(d::AbstractDict) = Dict{String,Any}(string(k) => f_helper(v) for (k, v) in d)
+        f_helper(l::AbstractArray) = length(l) > 0 ? f_helper.(l) : l #for JSON arrays
+        string_dict(d::AbstractDict) = f_helper(d)
+        x = string_dict(x)
+    end
+
     return _validate(x, schema.data, "")
 end
 
