@@ -69,8 +69,7 @@ function validate(schema::Schema, x)
 
     # If thing to validate came from JSON3.jl, turn it in to a dictionary with string keys
     if x isa JSON3.Object || x isa JSON3.Array
-        x = copy(x)
-
+        
         #recursively makes a dictionary have string keys
         f_helper(x) = x
         f_helper(d::AbstractDict) = Dict{String,Any}(string(k) => f_helper(v) for (k, v) in d)

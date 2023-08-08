@@ -235,7 +235,6 @@ struct Schema
 
         # Keys need to be strings
         if schema isa JSON3.Object || schema isa JSON3.Array
-            schema = copy(schema)
 
             f_helper(x) = x
             f_helper(d::AbstractDict) = Dict{String,Any}(string(k) => f_helper(v) for (k, v) in d)
