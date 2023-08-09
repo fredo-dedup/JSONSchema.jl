@@ -202,21 +202,18 @@ end
             @testset "$(schema["description"])" for schema in
                                                     JSON3.read(file_path)
                 spec = JSONSchema.Schema(
-                    schema["schema"];
-                    parent_dir = schema["schema"] isa Bool ? abspath(".") :
+                    schema[:schema];
+                    parent_dir = schema[:schema] isa Bool ? abspath(".") :
                                  dirname(file_path),
                 )
-                @testset "$(test["description"])" for test in schema["tests"]
-                    @test isnothing(validate(spec, test["data"])) == test["valid"]
+                @testset "$(test["description"])" for test in schema[:tests]
+                    @test isnothing(validate(spec, test[:data])) == test[:valid]
                 end
             end
         end
     end
     close(server)
 end
-
-
-
 
 @testset "Validate and diagnose" begin
     schema = JSONSchema.Schema(
@@ -245,7 +242,6 @@ end
     schema = JSONSchema.Schema("{}"; parentFileDirectory = ".")
     @test typeof(schema) == Schema
 end
-
 
 @testset "Schemas" begin
     schema = JSONSchema.Schema("""{
