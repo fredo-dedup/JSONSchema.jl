@@ -214,7 +214,6 @@ end
     end
     close(server)
 end
-
 @testset "Validate and diagnose" begin
     schema = JSONSchema.Schema(
         Dict(
