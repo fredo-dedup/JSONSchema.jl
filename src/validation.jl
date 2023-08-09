@@ -66,20 +66,11 @@ schema value: ["foo"]
 ```
 """
 function validate(schema::Schema, x)
-
-    # If thing to validate came from JSON3.jl, turn it in to a dictionary with string keys
-    if x isa JSON3.Object || x isa JSON3.Array
-        
-        #recursively makes a dictionary have string keys
-        f_helper(x) = x
-        f_helper(d::AbstractDict) = Dict{String,Any}(string(k) => f_helper(v) for (k, v) in d)
-        f_helper(l::AbstractArray) =  f_helper.(l) #for JSON arrays
-        string_dict(d::AbstractDict) = f_helper(d)
-
-        x = string_dict(x)
-    end
-
     return _validate(x, schema.data, "")
+end
+
+function validate(schema::Schema, x::Union{JSON3.Object, JSON3.Array})
+    return validate(schema, _to_base_julia(x))
 end
 
 Base.isvalid(schema::Schema, x) = validate(schema, x) === nothing

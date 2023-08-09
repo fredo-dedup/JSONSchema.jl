@@ -199,6 +199,15 @@ function build_id_map!(
     return
 end
 
+# Turning JSON3 read files in to base Julia dicts with string keys
+_to_base_julia(x) = x
+
+_to_base_julia(x::JSON.Array) = _to_base_julia.(x)
+
+function _to_base_julia(x::JSON3.Object)
+    return Dict{String,Any}(string(k) => _to_base_julia(v) for (k,v) in x)
+end
+
 """
     Schema(schema::AbstractDict; parent_dir::String = abspath("."))
 
@@ -233,20 +242,17 @@ struct Schema
         end
         schema = deepcopy(schema)  # Ensure we don't modify the user's data!
 
-        # Keys need to be strings
-        if schema isa JSON3.Object || schema isa JSON3.Array
-
-            f_helper(x) = x
-            f_helper(d::AbstractDict) = Dict{String,Any}(string(k) => f_helper(v) for (k, v) in d)
-            f_helper(l::AbstractArray) = f_helper.(l)
-            string_dict(d::AbstractDict) = f_helper(d)
-            
-            schema = string_dict(schema)
-        end
-
         id_map = build_id_map(schema)
         resolve_refs!(schema, URIs.URI(), id_map, parent_dir)
         return new(schema)
+    end
+
+    function Schema(
+        schema::JSON3.Object;
+        parent_dir::String = abspath("."),
+        parentFileDirectory = nothing,
+    )
+        return Schema(_to_base_julia(schema), parent_dir = parent_dir, parentFileDirectory = parentFileDirectory)
     end
 end
 
