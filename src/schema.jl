@@ -202,7 +202,7 @@ end
 # Turning JSON3 read files in to base Julia dicts with string keys
 _to_base_julia(x) = x
 
-_to_base_julia(x::JSON.Array) = _to_base_julia.(x)
+_to_base_julia(x::JSON3.Array) = _to_base_julia.(x)
 
 function _to_base_julia(x::JSON3.Object)
     return Dict{String,Any}(string(k) => _to_base_julia(v) for (k,v) in x)
