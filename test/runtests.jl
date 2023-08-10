@@ -6,9 +6,9 @@
 using JSONSchema
 using Test
 import Downloads
-import JSON3
 import HTTP
 import JSON
+import JSON3
 import OrderedCollections
 import ZipFile
 
@@ -214,6 +214,7 @@ end
     end
     close(server)
 end
+
 @testset "Validate and diagnose" begin
     schema = JSONSchema.Schema(
         Dict(
