@@ -69,7 +69,7 @@ function validate(schema::Schema, x)
     return _validate(x, schema.data, "")
 end
 
-function validate(schema::Schema, x::Union{JSON3.Object, JSON3.Array})
+function validate(schema::Schema, x::Union{JSON3.Object,JSON3.Array})
     return validate(schema, _to_base_julia(x))
 end
 
