@@ -241,18 +241,9 @@ struct Schema
             parent_dir = parentFileDirectory
         end
         schema = deepcopy(schema)  # Ensure we don't modify the user's data!
-
         id_map = build_id_map(schema)
         resolve_refs!(schema, URIs.URI(), id_map, parent_dir)
         return new(schema)
-    end
-
-    function Schema(
-        schema::JSON3.Object;
-        parent_dir::String = abspath("."),
-        parentFileDirectory = nothing,
-    )
-        return Schema(_to_base_julia(schema), parent_dir = parent_dir, parentFileDirectory = parentFileDirectory)
     end
 end
 
@@ -285,5 +276,9 @@ my_schema = Schema(
 ```
 """
 Schema(schema::String; kwargs...) = Schema(JSON.parse(schema); kwargs...)
+
+function Schema(schema::JSON3.Object; kwargs...)
+    return Schema(_to_base_julia(schema); kwargs...)
+end
 
 Base.show(io::IO, ::Schema) = print(io, "A JSONSchema")
