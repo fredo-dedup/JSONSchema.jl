@@ -1,3 +1,8 @@
+# Copyright (c) 2018: fredo-dedup and contributors
+#
+# Use of this source code is governed by an MIT-style license that can be found
+# in the LICENSE.md file or at https://opensource.org/licenses/MIT.
+
 struct SingleIssue
     x::Any
     path::String
@@ -19,9 +24,14 @@ end
 """
     validate(s::Schema, x)
 
-Validate document `x` is valid against the Schema `s`. If valid, return
-`nothing`, else return a `SingleIssue`. When printed, the returned `SingleIssue`
-describes the reason why the validation failed.
+Validate the object `x` against the Schema `s`. If valid, return `nothing`, else
+return a `SingleIssue`. When printed, the returned `SingleIssue` describes the
+reason why the validation failed.
+
+
+Note that if `x` is a `String` in JSON format, you must use `JSON.parse(x)`
+before passing to `validate`, that is, JSONSchema operates on the parsed
+representation, not on the underlying `String` representation of the JSON data.
 
 ## Examples
 
@@ -57,6 +67,10 @@ schema value: ["foo"]
 """
 function validate(schema::Schema, x)
     return _validate(x, schema.data, "")
+end
+
+function validate(schema::Schema, x::Union{JSON3.Object,JSON3.Array})
+    return validate(schema, _to_base_julia(x))
 end
 
 Base.isvalid(schema::Schema, x) = validate(schema, x) === nothing
@@ -105,7 +119,7 @@ _validate(::Any, ::Any, ::Val, ::Any, ::String) = nothing
 ###
 
 # 9.2.1.1
-function _validate(x, schema, ::Val{:allOf}, val::Vector, path::String)
+function _validate(x, schema, ::Val{:allOf}, val::AbstractVector, path::String)
     for v in val
         ret = _validate(x, v, path)
         if ret !== nothing
@@ -116,7 +130,7 @@ function _validate(x, schema, ::Val{:allOf}, val::Vector, path::String)
 end
 
 # 9.2.1.2
-function _validate(x, schema, ::Val{:anyOf}, val::Vector, path::String)
+function _validate(x, schema, ::Val{:anyOf}, val::AbstractVector, path::String)
     for v in val
         if _validate(x, v, path) === nothing
             return
@@ -126,7 +140,7 @@ function _validate(x, schema, ::Val{:anyOf}, val::Vector, path::String)
 end
 
 # 9.2.1.3
-function _validate(x, schema, ::Val{:oneOf}, val::Vector, path::String)
+function _validate(x, schema, ::Val{:oneOf}, val::AbstractVector, path::String)
     found_match = false
     for v in val
         if _validate(x, v, path) === nothing
@@ -157,7 +171,7 @@ end
 
 # 9.3.1.1
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:items},
     val::AbstractDict,
@@ -175,7 +189,13 @@ function _validate(
     return _additional_items(x, schema, items, additionalItems, path)
 end
 
-function _validate(x::Vector, schema, ::Val{:items}, val::Vector, path::String)
+function _validate(
+    x::AbstractVector,
+    schema,
+    ::Val{:items},
+    val::AbstractVector,
+    path::String,
+)
     items = fill(false, length(x))
     for (i, xi) in enumerate(x)
         if i > length(val)
@@ -191,7 +211,13 @@ function _validate(x::Vector, schema, ::Val{:items}, val::Vector, path::String)
     return _additional_items(x, schema, items, additionalItems, path)
 end
 
-function _validate(x::Vector, schema, ::Val{:items}, val::Bool, path::String)
+function _validate(
+    x::AbstractVector,
+    schema,
+    ::Val{:items},
+    val::Bool,
+    path::String,
+)
     return val || (!val && length(x) == 0) ? nothing :
            SingleIssue(x, path, "items", val)
 end
@@ -218,7 +244,7 @@ _additional_items(x, schema, items, val::Nothing, path) = nothing
 
 # 9.3.1.2
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:additionalItems},
     val,
@@ -230,7 +256,13 @@ end
 # 9.3.1.3: unevaluatedProperties
 
 # 9.3.1.4
-function _validate(x::Vector, schema, ::Val{:contains}, val, path::String)
+function _validate(
+    x::AbstractVector,
+    schema,
+    ::Val{:contains},
+    val,
+    path::String,
+)
     for (i, xi) in enumerate(x)
         ret = _validate(xi, val, path * "[$(i)]")
         if ret === nothing
@@ -360,7 +392,7 @@ function _validate(x, schema, ::Val{:type}, val::String, path::String)
            SingleIssue(x, path, "type", val) : nothing
 end
 
-function _validate(x, schema, ::Val{:type}, val::Vector, path::String)
+function _validate(x, schema, ::Val{:type}, val::AbstractVector, path::String)
     if !any(v -> _is_type(x, Val{Symbol(v)}()), val)
         return SingleIssue(x, path, "type", val)
     end
@@ -523,7 +555,7 @@ end
 
 # 6.4.1
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:maxItems},
     val::Integer,
@@ -534,7 +566,7 @@ end
 
 # 6.4.2
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:minItems},
     val::Integer,
@@ -545,7 +577,7 @@ end
 
 # 6.4.3
 function _validate(
-    x::Vector,
+    x::AbstractVector,
     schema,
     ::Val{:uniqueItems},
     val::Bool,
@@ -595,7 +627,7 @@ function _validate(
     x::AbstractDict,
     schema,
     ::Val{:required},
-    val::Vector,
+    val::AbstractVector,
     path::String,
 )
     return any(v -> !haskey(x, v), val) ?
@@ -620,9 +652,14 @@ function _validate(
     return
 end
 
-function _dependencies(x::AbstractDict, path::String, val::Union{Bool,Dict})
+function _dependencies(
+    x::AbstractDict,
+    path::String,
+    val::Union{Bool,AbstractDict},
+)
     return _validate(x, val, path) === nothing
 end
+
 function _dependencies(x::AbstractDict, path::String, val::Array)
     return all(v -> haskey(x, v), val)
 end

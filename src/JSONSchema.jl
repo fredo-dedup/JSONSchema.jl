@@ -1,8 +1,15 @@
+# Copyright (c) 2018: fredo-dedup and contributors
+#
+# Use of this source code is governed by an MIT-style license that can be found
+# in the LICENSE.md file or at https://opensource.org/licenses/MIT.
+
 module JSONSchema
 
-using JSON
+
+import Downloads
+import JSON
+import JSON3
 using JSONPointer
-import HTTP
 import URIs
 
 export Schema, validate

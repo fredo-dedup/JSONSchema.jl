@@ -1,3 +1,8 @@
+# Copyright (c) 2018: fredo-dedup and contributors
+#
+# Use of this source code is governed by an MIT-style license that can be found
+# in the LICENSE.md file or at https://opensource.org/licenses/MIT.
+
 # Transform escaped characters in JPaths back to their original value.
 function unescape_jpath(raw::String)
     ret = replace(replace(raw, "~0" => "~"), "~1" => "/")
@@ -50,7 +55,7 @@ function _recurse_get_element(schema::AbstractDict, element::String)
     return schema[element]
 end
 
-function _recurse_get_element(schema::Vector, element::String)
+function _recurse_get_element(schema::AbstractVector, element::String)
     index = tryparse(Int, element)  # Remember that `index` is 0-indexed!
     if index === nothing
         error("expected integer array index instead of '$(element)'.")
@@ -61,11 +66,18 @@ function _recurse_get_element(schema::Vector, element::String)
 end
 
 function get_remote_schema(uri::URIs.URI)
-    r = HTTP.get(uri)
-    if r.status != 200
-        error("Unable to get remote schema at $uri. HTTP status = $(r.status)")
+    io = IOBuffer()
+    r = Downloads.request(string(uri); output = io, throw = false)
+    if r isa Downloads.Response && r.status == 200
+        return Schema(JSON.parse(seekstart(io)))
     end
-    return Schema(JSON.parse(String(r.body)))
+    msg = "Unable to get remote schema at $uri"
+    if r isa Downloads.RequestError
+        msg *= ": " * r.message
+    elseif r isa Downloads.Response
+        msg *= ": HTTP status code $(r.status)"
+    end
+    return error(msg)
 end
 
 function find_ref(
@@ -110,7 +122,7 @@ end
 resolve_refs!(::Any, ::URIs.URI, ::AbstractDict, ::String) = nothing
 
 function resolve_refs!(
-    schema::Vector,
+    schema::AbstractVector,
     uri::URIs.URI,
     id_map::AbstractDict,
     parent_dir::String,
@@ -157,7 +169,11 @@ end
 
 build_id_map!(::AbstractDict, ::Any, ::URIs.URI) = nothing
 
-function build_id_map!(id_map::AbstractDict, schema::Vector, uri::URIs.URI)
+function build_id_map!(
+    id_map::AbstractDict,
+    schema::AbstractVector,
+    uri::URIs.URI,
+)
     build_id_map!.(Ref(id_map), schema, Ref(uri))
     return
 end
@@ -183,19 +199,30 @@ function build_id_map!(
     return
 end
 
-"""
+# Turning JSON3 read files in to base Julia dicts with string keys
+_to_base_julia(x) = x
 
+_to_base_julia(x::JSON3.Array) = _to_base_julia.(x)
+
+function _to_base_julia(x::JSON3.Object)
+    return Dict{String,Any}(string(k) => _to_base_julia(v) for (k, v) in x)
+end
+
+"""
     Schema(schema::AbstractDict; parent_dir::String = abspath("."))
 
-Create a schema but with `schema` being a parsed JSON created with `JSON.parse()` or
-`JSON.parsefile()`.
+Create a schema but with `schema` being a parsed JSON created with `JSON.parse()`
+or `JSON.parsefile()`.
 
-`parent_dir` is the path with respect to which references to local schemas are resolved.
+`parent_dir` is the path with respect to which references to local schemas are
+resolved.
 
 ## Examples
 
-    my_schema = Schema(JSON.parsefile(filename))
-    my_schema = Schema(JSON.parsefile(filename); parent_dir = "~/schemas")
+```julia
+my_schema = Schema(JSON.parsefile(filename))
+my_schema = Schema(JSON.parsefile(filename); parent_dir = "~/schemas")
+```
 """
 struct Schema
     data::Union{AbstractDict,Bool}
@@ -225,26 +252,33 @@ end
 
 Create a schema for document validation by parsing the string `schema`.
 
-`parent_dir` is the path with respect to which references to local schemas are resolved.
+`parent_dir` is the path with respect to which references to local schemas are
+resolved.
 
 ## Examples
 
-    my_schema = Schema(\"\"\"{
-        \"properties\": {
-            \"foo\": {},
-            \"bar\": {}
-        },
-        \"required\": [\"foo\"]
-    }\"\"\")
+```julia
+my_schema = Schema(\"\"\"{
+    \"properties\": {
+        \"foo\": {},
+        \"bar\": {}
+    },
+    \"required\": [\"foo\"]
+}\"\"\")
 
-    # Assume there exists `~/schemas/local_file.json`:
-    my_schema = Schema(
-        \"\"\"{
-            "\$ref": "local_file.json"
-        }\"\"\",
-        parent_dir = "~/schemas"
-    )
+# Assume there exists `~/schemas/local_file.json`:
+my_schema = Schema(
+    \"\"\"{
+        "\$ref": "local_file.json"
+    }\"\"\",
+    parent_dir = "~/schemas"
+)
+```
 """
 Schema(schema::String; kwargs...) = Schema(JSON.parse(schema); kwargs...)
+
+function Schema(schema::JSON3.Object; kwargs...)
+    return Schema(_to_base_julia(schema); kwargs...)
+end
 
 Base.show(io::IO, ::Schema) = print(io, "A JSONSchema")
