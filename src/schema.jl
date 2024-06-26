@@ -3,18 +3,6 @@
 # Use of this source code is governed by an MIT-style license that can be found
 # in the LICENSE.md file or at https://opensource.org/licenses/MIT.
 
-# Transform escaped characters in JPaths back to their original value.
-function unescape_jpath(raw::String)
-    ret = replace(replace(raw, "~0" => "~"), "~1" => "/")
-    m = match(r"%([0-9A-F]{2})", ret)
-    if m !== nothing
-        for c in m.captures
-            ret = replace(ret, "%$(c)" => Char(parse(UInt8, "0x$(c)")))
-        end
-    end
-    return ret
-end
-
 function type_to_dict(x)
     return Dict(name => getfield(x, name) for name in fieldnames(typeof(x)))
 end
@@ -33,36 +21,6 @@ function update_id(uri::URIs.URI, s::String)
             oldpath == nothing ? id2.path : oldpath.captures[1] * id2.path
     end
     return URIs.URI(; els...)
-end
-
-function get_element(schema, path::AbstractString)
-    for element in split(path, "/"; keepempty = false)
-        schema = _recurse_get_element(schema, unescape_jpath(String(element)))
-    end
-    return schema
-end
-
-function _recurse_get_element(schema::Any, ::String)
-    return error(
-        "unmanaged type in ref resolution $(typeof(schema)): $(schema).",
-    )
-end
-
-function _recurse_get_element(schema::AbstractDict, element::String)
-    if !haskey(schema, element)
-        error("missing property '$(element)' in $(schema).")
-    end
-    return schema[element]
-end
-
-function _recurse_get_element(schema::AbstractVector, element::String)
-    index = tryparse(Int, element)  # Remember that `index` is 0-indexed!
-    if index === nothing
-        error("expected integer array index instead of '$(element)'.")
-    elseif index >= length(schema)
-        error("item index $(index) is larger than array $(schema).")
-    end
-    return schema[index+1]
 end
 
 function get_remote_schema(uri::URIs.URI)
@@ -89,7 +47,8 @@ function find_ref(
     if path == "" || path == "#"  # This path refers to the root schema.
         return id_map[string(uri)]
     elseif startswith(path, "#/")  # This path is a JPointer.
-        return get_element(id_map[string(uri)], path[3:end])
+        p = JSONPointer.Pointer(path; shift_index=true)
+        return get_pointer(id_map[string(uri)], p)
     end
     uri = update_id(uri, path)
     els = type_to_dict(uri)
@@ -114,7 +73,8 @@ function find_ref(
             ).data
         end
     end
-    return get_element(id_map[string(uri2)], uri.fragment)
+    p = JSONPointer.Pointer(uri.fragment; shift_index = true)
+    return get_pointer(id_map[string(uri2)], p)
 end
 
 # Recursively find all "$ref" fields and resolve their path.
