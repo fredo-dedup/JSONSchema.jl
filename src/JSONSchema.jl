@@ -5,7 +5,6 @@
 
 module JSONSchema
 
-
 import Downloads
 import JSON
 import JSON3

@@ -276,7 +276,9 @@ end
     )
 
     @test_throws(
-        ArgumentError("JSON pointer does not match the data-structure. I tried (and failed) to index 1 with the key: Foo"),
+        ArgumentError(
+            "JSON pointer does not match the data-structure. I tried (and failed) to index 1 with the key: Foo",
+        ),
         JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
@@ -284,7 +286,9 @@ end
         }""")
     )
     @test_throws(
-        ArgumentError("JSON pointer does not match the data-structure. I tried (and failed) to index Any[1, 2] with the key: Foo"),
+        ArgumentError(
+            "JSON pointer does not match the data-structure. I tried (and failed) to index Any[1, 2] with the key: Foo",
+        ),
         JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},

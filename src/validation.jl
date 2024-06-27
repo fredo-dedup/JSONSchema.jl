@@ -171,7 +171,7 @@ function _validate(x, schema, ::Val{:if}, val, path::String)
     if haskey(schema, "then") || haskey(schema, "else")
         ret = _if_then_else(x, schema, path)
         return ret
-    end 
+    end
     return nothing
 end
 # 9.2.2.2: then
@@ -180,7 +180,7 @@ function _validate(x, schema, ::Val{:then}, val, path::String)
     if haskey(schema, "if")
         ret = _if_then_else(x, schema, path)
         return ret
-    end 
+    end
     return nothing
 end
 # 9.2.2.3: else
@@ -189,7 +189,7 @@ function _validate(x, schema, ::Val{:else}, val, path::String)
     if haskey(schema, "if")
         ret = _if_then_else(x, schema, path)
         return ret
-    end 
+    end
     return nothing
 end
 
@@ -218,7 +218,7 @@ function _if_then_else(x, schema, path)
     end
     val_else = if haskey(schema, "else")
         _validate(x, schema["else"], path)
-    end 
+    end
     if isnothing(val_if)
         if isnothing(val_then) && isnothing(val_else)
             return nothing
@@ -231,7 +231,6 @@ function _if_then_else(x, schema, path)
     end
     return nothing
 end
-
 
 ###
 ### Checks for Arrays.

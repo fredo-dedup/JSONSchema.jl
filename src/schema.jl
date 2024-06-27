@@ -47,7 +47,7 @@ function find_ref(
     if path == "" || path == "#"  # This path refers to the root schema.
         return id_map[string(uri)]
     elseif startswith(path, "#/")  # This path is a JPointer.
-        p = JSONPointer.Pointer(path; shift_index=true)
+        p = JSONPointer.Pointer(path; shift_index = true)
         return get_pointer(id_map[string(uri)], p)
     end
     uri = update_id(uri, path)
