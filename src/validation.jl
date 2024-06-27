@@ -98,6 +98,16 @@ function _validate_entry(x, schema::Bool, path::String)
     return schema ? nothing : SingleIssue(x, path, "schema", schema)
 end
 
+"""
+    _resolve_refs(schema, explored_refs = Any[])
+
+Resolves any `"\$ref"` keys it encounters.
+Note: This is recursive function and will continue to resolve references until no more are found.
+
+# Arguments
+- `schema`: The schema or part of a schema to resolve references in.
+- `explored_refs`: An array to keep track of explored references to detect circular references.
+"""
 function _resolve_refs(schema::AbstractDict, explored_refs = Any[schema])
     if !haskey(schema, "\$ref")
         return schema
@@ -160,10 +170,71 @@ function _validate(x, schema, ::Val{:not}, val, path::String)
 end
 
 # 9.2.2.1: if
-
+function _validate(x, schema, ::Val{:if}, val, path::String)
+    # ignore if without then or else
+    if haskey(schema, "then") || haskey(schema, "else")
+        ret = _if_then_else(x, schema, path)
+        return ret
+    end 
+    return nothing
+end
 # 9.2.2.2: then
-
+function _validate(x, schema, ::Val{:then}, val, path::String)
+    # ignore then without if
+    if haskey(schema, "if")
+        ret = _if_then_else(x, schema, path)
+        return ret
+    end 
+    return nothing
+end
 # 9.2.2.3: else
+function _validate(x, schema, ::Val{:else}, val, path::String)
+    # ignore else without if
+    if haskey(schema, "if")
+        ret = _if_then_else(x, schema, path)
+        return ret
+    end 
+    return nothing
+end
+
+"""
+
+
+https://json-schema.org/understanding-json-schema/reference/conditionals#ifthenelse
+
+The if, then and else keywords allow the application of a subschema based on the outcome of another schema. Details are in the link and the truth table is as follows:
+
+ ┌─────┬──────┬──────┬────────┐
+ │ if  │ then │ else │ result │
+ ├─────┼──────┼──────┼────────┤
+ │ T   │ T    │ n/a  │ T      │
+ │ T   │ F    │ n/a  │ F      │
+ │ F   │ n/a  │ T    │ T      │
+ │ F   │ n/a  │ F    │ F      │
+ │ n/a │ n/a  │ n/a  │ T      │
+ └─────┴──────┴──────┴────────┘
+"""
+function _if_then_else(x, schema, path)
+    val_if = _validate(x, schema["if"], path)
+    val_then = if haskey(schema, "then")
+        _validate(x, schema["then"], path)
+    end
+    val_else = if haskey(schema, "else")
+        _validate(x, schema["else"], path)
+    end 
+    if isnothing(val_if)
+        if isnothing(val_then) && isnothing(val_else)
+            return nothing
+        else
+            return val_then
+        end
+    end
+    if isa(val_if, SingleIssue)
+        return val_else
+    end
+    return nothing
+end
+
 
 ###
 ### Checks for Arrays.
