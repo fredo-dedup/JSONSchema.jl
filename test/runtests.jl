@@ -131,7 +131,7 @@ write(
 }]""",
 )
 
-@testset "Draft 4/6" begin
+@testset "Draft 4/6/7" begin
     # Note(odow): I didn't want to use a mutable reference like this for the web-server.
     # The obvious thing to do is to start a new server for each value of `draft_folder`,
     # however, shutting down the webserver asynchronously doesn't play well with
@@ -148,6 +148,7 @@ write(
     @testset "$(draft_folder)" for draft_folder in [
         "draft4",
         "draft6",
+        "draft7",
         basename(abspath(LOCAL_TEST_DIR)),
     ]
         test_dir = joinpath(SCHEMA_TEST_DIR, draft_folder)
@@ -190,6 +191,7 @@ end
     @testset "$(draft_folder)" for draft_folder in [
         "draft4",
         "draft6",
+        "draft7",
         basename(abspath(LOCAL_TEST_DIR)),
     ]
         test_dir = joinpath(SCHEMA_TEST_DIR, draft_folder)
