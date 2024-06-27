@@ -103,10 +103,6 @@ end
 
 Resolves any `"\$ref"` keys it encounters.
 Note: This is recursive function and will continue to resolve references until no more are found.
-
-# Arguments
-- `schema`: The schema or part of a schema to resolve references in.
-- `explored_refs`: An array to keep track of explored references to detect circular references.
 """
 function _resolve_refs(schema::AbstractDict, explored_refs = Any[schema])
     if !haskey(schema, "\$ref")
@@ -198,21 +194,22 @@ function _validate(x, schema, ::Val{:else}, val, path::String)
 end
 
 """
-
-
-https://json-schema.org/understanding-json-schema/reference/conditionals#ifthenelse
+    _if_then_else(x, schema, path)
 
 The if, then and else keywords allow the application of a subschema based on the outcome of another schema. Details are in the link and the truth table is as follows:
 
- ┌─────┬──────┬──────┬────────┐
- │ if  │ then │ else │ result │
- ├─────┼──────┼──────┼────────┤
- │ T   │ T    │ n/a  │ T      │
- │ T   │ F    │ n/a  │ F      │
- │ F   │ n/a  │ T    │ T      │
- │ F   │ n/a  │ F    │ F      │
- │ n/a │ n/a  │ n/a  │ T      │
- └─────┴──────┴──────┴────────┘
+```
+┌─────┬──────┬──────┬────────┐
+│ if  │ then │ else │ result │       
+├─────┼──────┼──────┼────────┤ 
+│ T   │ T    │ n/a  │ T      │  
+│ T   │ F    │ n/a  │ F      │ 
+│ F   │ n/a  │ T    │ T      │ 
+│ F   │ n/a  │ F    │ F      │ 
+│ n/a │ n/a  │ n/a  │ T      │
+└─────┴──────┴──────┴────────┘
+https://json-schema.org/understanding-json-schema/reference/conditionals#ifthenelse
+```
 """
 function _if_then_else(x, schema, path)
     val_if = _validate(x, schema["if"], path)
