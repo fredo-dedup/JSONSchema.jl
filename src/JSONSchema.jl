@@ -8,7 +8,6 @@ module JSONSchema
 import Downloads
 import JSON
 import JSON3
-using JSONPointer
 import URIs
 
 export Schema, validate

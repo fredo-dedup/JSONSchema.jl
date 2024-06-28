@@ -267,7 +267,7 @@ end
 
 @testset "errors" begin
     @test_throws(
-        KeyError("Foo"),
+        ErrorException("missing property 'Foo' in $(Dict{String,Any}())."),
         JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
@@ -276,9 +276,7 @@ end
     )
 
     @test_throws(
-        ArgumentError(
-            "JSON pointer does not match the data-structure. I tried (and failed) to index 1 with the key: Foo",
-        ),
+        ErrorException("unmanaged type in ref resolution $(Int64): 1."),
         JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
@@ -286,9 +284,7 @@ end
         }""")
     )
     @test_throws(
-        ArgumentError(
-            "JSON pointer does not match the data-structure. I tried (and failed) to index Any[1, 2] with the key: Foo",
-        ),
+        ErrorException("expected integer array index instead of 'Foo'."),
         JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/Foo"}},
@@ -296,7 +292,7 @@ end
         }""")
     )
     @test_throws(
-        BoundsError,
+        ErrorException("item index 3 is larger than array $(Any[1, 2])."),
         JSONSchema.Schema("""{
             "type": "object",
             "properties": {"version": {"\$ref": "#/definitions/3"}},
