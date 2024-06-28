@@ -172,7 +172,7 @@ function _validate(x, schema, ::Val{:if}, val, path::String)
         ret = _if_then_else(x, schema, path)
         return ret
     end
-    return nothing
+    return 
 end
 # 9.2.2.2: then
 function _validate(x, schema, ::Val{:then}, val, path::String)
@@ -181,7 +181,7 @@ function _validate(x, schema, ::Val{:then}, val, path::String)
         ret = _if_then_else(x, schema, path)
         return ret
     end
-    return nothing
+    return 
 end
 # 9.2.2.3: else
 function _validate(x, schema, ::Val{:else}, val, path::String)
@@ -190,7 +190,7 @@ function _validate(x, schema, ::Val{:else}, val, path::String)
         ret = _if_then_else(x, schema, path)
         return ret
     end
-    return nothing
+    return 
 end
 
 """
