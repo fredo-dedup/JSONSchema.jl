@@ -212,24 +212,14 @@ https://json-schema.org/understanding-json-schema/reference/conditionals#ifthene
 ```
 """
 function _if_then_else(x, schema, path)
-    val_if = _validate(x, schema["if"], path)
-    val_then = if haskey(schema, "then")
-        _validate(x, schema["then"], path)
-    end
-    val_else = if haskey(schema, "else")
-        _validate(x, schema["else"], path)
-    end
-    if isnothing(val_if)
-        if isnothing(val_then) && isnothing(val_else)
-            return nothing
-        else
-            return val_then
+    if _validate(x, schema["if"], path) !== nothing
+        if haskey(schema, "else")
+            return _validate(x, schema["else"], path)
         end
+    elseif haskey(schema, "then")
+        return _validate(x, schema["then"], path)
     end
-    if isa(val_if, SingleIssue)
-        return val_else
-    end
-    return nothing
+    return
 end
 
 ###
