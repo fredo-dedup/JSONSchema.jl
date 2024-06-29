@@ -160,10 +160,64 @@ function _validate(x, schema, ::Val{:not}, val, path::String)
 end
 
 # 9.2.2.1: if
+function _validate(x, schema, ::Val{:if}, val, path::String)
+    # ignore if without then or else
+    if haskey(schema, "then") || haskey(schema, "else")
+        return _if_then_else(x, schema, path)
+    end
+    return
+end
 
 # 9.2.2.2: then
+function _validate(x, schema, ::Val{:then}, val, path::String)
+    # ignore then without if
+    if haskey(schema, "if")
+        return _if_then_else(x, schema, path)
+    end
+    return
+end
 
 # 9.2.2.3: else
+function _validate(x, schema, ::Val{:else}, val, path::String)
+    # ignore else without if
+    if haskey(schema, "if")
+        return _if_then_else(x, schema, path)
+    end
+    return
+end
+
+"""
+    _if_then_else(x, schema, path)
+
+The if, then and else keywords allow the application of a subschema based on the
+outcome of another schema. Details are in the link and the truth table is as
+follows:
+
+```
+┌─────┬──────┬──────┬────────┐
+│ if  │ then │ else │ result │       
+├─────┼──────┼──────┼────────┤ 
+│ T   │ T    │ n/a  │ T      │  
+│ T   │ F    │ n/a  │ F      │ 
+│ F   │ n/a  │ T    │ T      │ 
+│ F   │ n/a  │ F    │ F      │ 
+│ n/a │ n/a  │ n/a  │ T      │
+└─────┴──────┴──────┴────────┘
+```
+
+See https://json-schema.org/understanding-json-schema/reference/conditionals#ifthenelse
+for details.
+"""
+function _if_then_else(x, schema, path)
+    if _validate(x, schema["if"], path) !== nothing
+        if haskey(schema, "else")
+            return _validate(x, schema["else"], path)
+        end
+    elseif haskey(schema, "then")
+        return _validate(x, schema["then"], path)
+    end
+    return
+end
 
 ###
 ### Checks for Arrays.
