@@ -98,12 +98,6 @@ function _validate_entry(x, schema::Bool, path::String)
     return schema ? nothing : SingleIssue(x, path, "schema", schema)
 end
 
-"""
-    _resolve_refs(schema, explored_refs = Any[])
-
-Resolves any `"\$ref"` keys it encounters.
-Note: This is recursive function and will continue to resolve references until no more are found.
-"""
 function _resolve_refs(schema::AbstractDict, explored_refs = Any[schema])
     if !haskey(schema, "\$ref")
         return schema
@@ -171,7 +165,7 @@ function _validate(x, schema, ::Val{:if}, val, path::String)
     if haskey(schema, "then") || haskey(schema, "else")
         return _if_then_else(x, schema, path)
     end
-    return 
+    return
 end
 
 # 9.2.2.2: then
@@ -180,7 +174,7 @@ function _validate(x, schema, ::Val{:then}, val, path::String)
     if haskey(schema, "if")
         return _if_then_else(x, schema, path)
     end
-    return 
+    return
 end
 
 # 9.2.2.3: else
@@ -189,7 +183,7 @@ function _validate(x, schema, ::Val{:else}, val, path::String)
     if haskey(schema, "if")
         return _if_then_else(x, schema, path)
     end
-    return 
+    return
 end
 
 """
