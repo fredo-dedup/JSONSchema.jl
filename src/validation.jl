@@ -209,6 +209,7 @@ See https://json-schema.org/understanding-json-schema/reference/conditionals#ift
 for details.
 """
 function _if_then_else(x, schema, path)
+    error("Test that this actually gets run")
     if _validate(x, schema["if"], path) !== nothing
         if haskey(schema, "else")
             return _validate(x, schema["else"], path)
