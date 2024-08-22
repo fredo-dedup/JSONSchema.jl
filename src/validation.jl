@@ -117,6 +117,28 @@ _resolve_refs(schema, explored_refs = Any[]) = schema
 # Default fallback
 _validate(::Any, ::Any, ::Val, ::Any, ::String) = nothing
 
+# JSON treats == between Bool and Number differently to Julia, so:
+#   false != 0
+#   true != 1
+#   0 == 0.0
+#   1.0 == 1
+_isequal(x, y) = x == y
+
+_isequal(::Bool, ::Number) = false
+
+_isequal(::Number, ::Bool) = false
+
+_isequal(x::Bool, y::Bool) = x == y
+
+function _isequal(x::Vector, y::Vector)
+    return length(x) == length(y) && all(_isequal.(x, y))
+end
+
+function _isequal(x::Dict, y::Dict)
+    return Set(keys(x)) == Set(keys(y)) &&
+           all(_isequal(v, y[k]) for (k, v) in x)
+end
+
 ###
 ### Core JSON Schema
 ###
@@ -471,6 +493,7 @@ _is_type(::Any, ::Val) = false
 _is_type(::Array, ::Val{:array}) = true
 _is_type(::Bool, ::Val{:boolean}) = true
 _is_type(::Integer, ::Val{:integer}) = true
+_is_type(x::Float64, ::Val{:integer}) = isinteger(x)
 _is_type(::Real, ::Val{:number}) = true
 _is_type(::Nothing, ::Val{:null}) = true
 _is_type(::Missing, ::Val{:null}) = true
@@ -482,7 +505,7 @@ _is_type(::Bool, ::Val{:integer}) = false
 
 # 6.1.2
 function _validate(x, schema, ::Val{:enum}, val, path::String)
-    if !any(x == v for v in val)
+    if !any(_isequal(x, v) for v in val)
         return SingleIssue(x, path, "enum", val)
     end
     return
@@ -490,7 +513,7 @@ end
 
 # 6.1.3
 function _validate(x, schema, ::Val{:const}, val, path::String)
-    if x != val
+    if !_isequal(x, val)
         return SingleIssue(x, path, "const", val)
     end
     return
@@ -605,7 +628,7 @@ function _validate(
     x::String,
     schema,
     ::Val{:maxLength},
-    val::Integer,
+    val::Union{Integer,Float64},
     path::String,
 )
     if length(x) > val
@@ -619,7 +642,7 @@ function _validate(
     x::String,
     schema,
     ::Val{:minLength},
-    val::Integer,
+    val::Union{Integer,Float64},
     path::String,
 )
     if length(x) < val
@@ -651,7 +674,7 @@ function _validate(
     x::AbstractVector,
     schema,
     ::Val{:maxItems},
-    val::Integer,
+    val::Union{Integer,Float64},
     path::String,
 )
     if length(x) > val
@@ -665,7 +688,7 @@ function _validate(
     x::AbstractVector,
     schema,
     ::Val{:minItems},
-    val::Integer,
+    val::Union{Integer,Float64},
     path::String,
 )
     if length(x) < val
@@ -682,11 +705,15 @@ function _validate(
     val::Bool,
     path::String,
 )
-    # It isn't sufficient to just compare allunique on x, because Julia treats 0 == false,
-    # but JSON distinguishes them.
-    y = [(xx, typeof(xx)) for xx in x]
-    if val && !allunique(y)
-        return SingleIssue(x, path, "uniqueItems", val)
+    if !val
+        return
+    end
+    # TODO(odow): O(n^2) here. But probably not too bad, because there shouldn't
+    # be a large x.
+    for i in eachindex(x), j in eachindex(x)
+        if i != j && _isequal(x[i], x[j])
+            return SingleIssue(x, path, "uniqueItems", val)
+        end
     end
     return
 end
@@ -704,7 +731,7 @@ function _validate(
     x::AbstractDict,
     schema,
     ::Val{:maxProperties},
-    val::Integer,
+    val::Union{Integer,Float64},
     path::String,
 )
     if length(x) > val
@@ -718,7 +745,7 @@ function _validate(
     x::AbstractDict,
     schema,
     ::Val{:minProperties},
-    val::Integer,
+    val::Union{Integer,Float64},
     path::String,
 )
     if length(x) < val
