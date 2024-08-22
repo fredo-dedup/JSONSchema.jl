@@ -30,7 +30,7 @@ function update_id(uri::URIs.URI, s::String)
     if !isempty(id2.path)
         oldpath = match(r"^(.*/).*$", uri.path)
         els[:path] =
-            oldpath == nothing ? id2.path : oldpath.captures[1] * id2.path
+            oldpath === nothing ? id2.path : oldpath.captures[1] * id2.path
     end
     return URIs.URI(; els...)
 end
