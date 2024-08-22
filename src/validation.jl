@@ -95,7 +95,10 @@ function _validate_entry(x, schema::AbstractDict, path)
 end
 
 function _validate_entry(x, schema::Bool, path::String)
-    return schema ? nothing : SingleIssue(x, path, "schema", schema)
+    if !schema
+        return SingleIssue(x, path, "schema", schema)
+    end
+    return
 end
 
 function _resolve_refs(schema::AbstractDict, explored_refs = Any[schema])
@@ -150,13 +153,18 @@ function _validate(x, schema, ::Val{:oneOf}, val::AbstractVector, path::String)
             found_match = true
         end
     end
-    return found_match ? nothing : SingleIssue(x, path, "oneOf", val)
+    if !found_match
+        return SingleIssue(x, path, "oneOf", val)
+    end
+    return
 end
 
 # 9.2.1.4
 function _validate(x, schema, ::Val{:not}, val, path::String)
-    ret = _validate(x, val, path)
-    return ret === nothing ? SingleIssue(x, path, "not", val) : nothing
+    if _validate(x, val, path) === nothing
+        return SingleIssue(x, path, "not", val)
+    end
+    return
 end
 
 # 9.2.2.1: if
@@ -195,12 +203,12 @@ follows:
 
 ```
 ┌─────┬──────┬──────┬────────┐
-│ if  │ then │ else │ result │       
-├─────┼──────┼──────┼────────┤ 
-│ T   │ T    │ n/a  │ T      │  
-│ T   │ F    │ n/a  │ F      │ 
-│ F   │ n/a  │ T    │ T      │ 
-│ F   │ n/a  │ F    │ F      │ 
+│ if  │ then │ else │ result │
+├─────┼──────┼──────┼────────┤
+│ T   │ T    │ n/a  │ T      │
+│ T   │ F    │ n/a  │ F      │
+│ F   │ n/a  │ T    │ T      │
+│ F   │ n/a  │ F    │ F      │
 │ n/a │ n/a  │ n/a  │ T      │
 └─────┴──────┴──────┴────────┘
 ```
@@ -272,8 +280,10 @@ function _validate(
     val::Bool,
     path::String,
 )
-    return val || (!val && length(x) == 0) ? nothing :
-           SingleIssue(x, path, "items", val)
+    if !val && length(x) > 0
+        return SingleIssue(x, path, "items", val)
+    end
+    return
 end
 
 function _additional_items(x, schema, items, val, path)
@@ -290,8 +300,10 @@ function _additional_items(x, schema, items, val, path)
 end
 
 function _additional_items(x, schema, items, val::Bool, path)
-    return !val && !all(items) ? SingleIssue(x, path, "additionalItems", val) :
-           nothing
+    if !val && !all(items)
+        return SingleIssue(x, path, "additionalItems", val)
+    end
+    return
 end
 
 _additional_items(x, schema, items, val::Nothing, path) = nothing
@@ -442,8 +454,10 @@ end
 
 # 6.1.1
 function _validate(x, schema, ::Val{:type}, val::String, path::String)
-    return !_is_type(x, Val{Symbol(val)}()) ?
-           SingleIssue(x, path, "type", val) : nothing
+    if !_is_type(x, Val{Symbol(val)}())
+        return SingleIssue(x, path, "type", val)
+    end
+    return
 end
 
 function _validate(x, schema, ::Val{:type}, val::AbstractVector, path::String)
@@ -468,13 +482,18 @@ _is_type(::Bool, ::Val{:integer}) = false
 
 # 6.1.2
 function _validate(x, schema, ::Val{:enum}, val, path::String)
-    return !any(x == v for v in val) ? SingleIssue(x, path, "enum", val) :
-           nothing
+    if !any(x == v for v in val)
+        return SingleIssue(x, path, "enum", val)
+    end
+    return
 end
 
 # 6.1.3
 function _validate(x, schema, ::Val{:const}, val, path::String)
-    return x != val ? SingleIssue(x, path, "const", val) : nothing
+    if x != val
+        return SingleIssue(x, path, "const", val)
+    end
+    return
 end
 
 ###
@@ -489,8 +508,10 @@ function _validate(
     val::Number,
     path::String,
 )
-    y = isapprox(x / val, round(x / val))
-    return !y ? SingleIssue(x, path, "multipleOf", val) : nothing
+    if !isapprox(x / val, round(x / val))
+        return SingleIssue(x, path, "multipleOf", val)
+    end
+    return
 end
 
 # 6.2.2
@@ -501,7 +522,10 @@ function _validate(
     val::Number,
     path::String,
 )
-    return x > val ? SingleIssue(x, path, "maximum", val) : nothing
+    if x > val
+        return SingleIssue(x, path, "maximum", val)
+    end
+    return
 end
 
 # 6.2.3
@@ -512,7 +536,10 @@ function _validate(
     val::Number,
     path::String,
 )
-    return x >= val ? SingleIssue(x, path, "exclusiveMaximum", val) : nothing
+    if x >= val
+        return SingleIssue(x, path, "exclusiveMaximum", val)
+    end
+    return
 end
 
 function _validate(
@@ -522,11 +549,10 @@ function _validate(
     val::Bool,
     path::String,
 )
-    if !val
-        return
+    if val && x >= get(schema, "maximum", Inf)
+        return SingleIssue(x, path, "exclusiveMaximum", val)
     end
-    max = get(schema, "maximum", Inf)
-    return x >= max ? SingleIssue(x, path, "exclusiveMaximum", val) : nothing
+    return
 end
 
 # 6.2.4
@@ -537,7 +563,10 @@ function _validate(
     val::Number,
     path::String,
 )
-    return x < val ? SingleIssue(x, path, "minimum", val) : nothing
+    if x < val
+        return SingleIssue(x, path, "minimum", val)
+    end
+    return
 end
 
 # 6.2.5
@@ -548,7 +577,10 @@ function _validate(
     val::Number,
     path::String,
 )
-    return x <= val ? SingleIssue(x, path, "exclusiveMinimum", val) : nothing
+    if x <= val
+        return SingleIssue(x, path, "exclusiveMinimum", val)
+    end
+    return
 end
 
 function _validate(
@@ -558,11 +590,10 @@ function _validate(
     val::Bool,
     path::String,
 )
-    if !val
-        return
+    if val && x <= get(schema, "minimum", -Inf)
+        return SingleIssue(x, path, "exclusiveMinimum", val)
     end
-    max = get(schema, "minimum", -Inf)
-    return x <= max ? SingleIssue(x, path, "exclusiveMinimum", val) : nothing
+    return
 end
 
 ###
@@ -577,7 +608,10 @@ function _validate(
     val::Integer,
     path::String,
 )
-    return length(x) > val ? SingleIssue(x, path, "maxLength", val) : nothing
+    if length(x) > val
+        return SingleIssue(x, path, "maxLength", val)
+    end
+    return
 end
 
 # 6.3.2
@@ -588,7 +622,10 @@ function _validate(
     val::Integer,
     path::String,
 )
-    return length(x) < val ? SingleIssue(x, path, "minLength", val) : nothing
+    if length(x) < val
+        return SingleIssue(x, path, "minLength", val)
+    end
+    return
 end
 
 # 6.3.3
@@ -599,8 +636,10 @@ function _validate(
     val::String,
     path::String,
 )
-    y = occursin(Regex(val), x)
-    return !y ? SingleIssue(x, path, "pattern", val) : nothing
+    if !occursin(Regex(val), x)
+        return SingleIssue(x, path, "pattern", val)
+    end
+    return
 end
 
 ###
@@ -615,7 +654,10 @@ function _validate(
     val::Integer,
     path::String,
 )
-    return length(x) > val ? SingleIssue(x, path, "maxItems", val) : nothing
+    if length(x) > val
+        return SingleIssue(x, path, "maxItems", val)
+    end
+    return
 end
 
 # 6.4.2
@@ -626,7 +668,10 @@ function _validate(
     val::Integer,
     path::String,
 )
-    return length(x) < val ? SingleIssue(x, path, "minItems", val) : nothing
+    if length(x) < val
+        return SingleIssue(x, path, "minItems", val)
+    end
+    return
 end
 
 # 6.4.3
@@ -640,8 +685,10 @@ function _validate(
     # It isn't sufficient to just compare allunique on x, because Julia treats 0 == false,
     # but JSON distinguishes them.
     y = [(xx, typeof(xx)) for xx in x]
-    return val && !allunique(y) ? SingleIssue(x, path, "uniqueItems", val) :
-           nothing
+    if val && !allunique(y)
+        return SingleIssue(x, path, "uniqueItems", val)
+    end
+    return
 end
 
 # 6.4.4: maxContains
@@ -660,8 +707,10 @@ function _validate(
     val::Integer,
     path::String,
 )
-    return length(x) > val ? SingleIssue(x, path, "maxProperties", val) :
-           nothing
+    if length(x) > val
+        return SingleIssue(x, path, "maxProperties", val)
+    end
+    return
 end
 
 # 6.5.2
@@ -672,8 +721,10 @@ function _validate(
     val::Integer,
     path::String,
 )
-    return length(x) < val ? SingleIssue(x, path, "minProperties", val) :
-           nothing
+    if length(x) < val
+        return SingleIssue(x, path, "minProperties", val)
+    end
+    return
 end
 
 # 6.5.3
@@ -684,8 +735,10 @@ function _validate(
     val::AbstractVector,
     path::String,
 )
-    return any(v -> !haskey(x, v), val) ?
-           SingleIssue(x, path, "required", val) : nothing
+    if any(v -> !haskey(x, v), val)
+        return SingleIssue(x, path, "required", val)
+    end
+    return
 end
 
 # 6.5.4

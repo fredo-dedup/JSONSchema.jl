@@ -22,7 +22,10 @@ function diagnose(x, schema)
         :diagnose,
     )
     ret = validate(schema, x)
-    return ret === nothing ? nothing : sprint(show, ret)
+    if ret !== nothing
+        return sprint(show, ret)
+    end
+    return
 end
 
 end
