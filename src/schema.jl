@@ -97,7 +97,9 @@ function find_ref(
     path::String,
     parent_dir::String,
 )
-    if path == "" || path == "#"  # This path refers to the root schema.
+    if haskey(id_map, path)
+        return id_map[path] # An exact path exists. Get it.
+    elseif path == "" || path == "#"  # This path refers to the root schema.
         return id_map[string(uri)]
     elseif startswith(path, "#/")  # This path is a JPointer.
         return get_element(id_map[string(uri)], path[3:end])
