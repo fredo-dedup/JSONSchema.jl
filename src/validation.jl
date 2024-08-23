@@ -130,11 +130,11 @@ _isequal(::Number, ::Bool) = false
 
 _isequal(x::Bool, y::Bool) = x == y
 
-function _isequal(x::Vector, y::Vector)
+function _isequal(x::AbstractVector, y::AbstractVector)
     return length(x) == length(y) && all(_isequal.(x, y))
 end
 
-function _isequal(x::Dict, y::Dict)
+function _isequal(x::AbstractDict, y::AbstractDict)
     return Set(keys(x)) == Set(keys(y)) &&
            all(_isequal(v, y[k]) for (k, v) in x)
 end
