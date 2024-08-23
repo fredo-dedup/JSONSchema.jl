@@ -119,10 +119,11 @@ function find_ref(
         else
             @assert is_file_uri
             @info("loading local ref $(uri2)")
-            id_map[string(uri2)] = Schema(
+            local_schema = Schema(
                 JSON.parsefile(uri2.path);
                 parent_dir = dirname(uri2.path),
-            ).data
+            )
+            id_map[string(uri2)] = schema.data
         end
     end
     return get_element(id_map[string(uri2)], uri.fragment)
@@ -150,6 +151,17 @@ function resolve_refs!(
     id_map::AbstractDict,
     parent_dir::String,
 )
+    # This $ref has not been resolved yet (otherwise it would not be a String).
+    # We will replace the path string with the schema element pointed at, thus
+    # marking it as resolved. This should prevent infinite recursions caused by
+    # self referencing. We also unpack the $ref first so that fields like $id
+    # do not interfere with it.
+    ref = get(schema, "\$ref", nothing)
+    ref_unpacked = false
+    if ref isa String
+        schema["\$ref"] = find_ref(uri, id_map, ref, parent_dir)
+        ref_unpacked = true
+    end
     if haskey(schema, "id") && schema["id"] isa String
         # This block is for draft 4.
         uri = update_id(uri, schema["id"])
@@ -159,13 +171,9 @@ function resolve_refs!(
         uri = update_id(uri, schema["\$id"])
     end
     for (k, v) in schema
-        if k == "\$ref" && v isa String
-            # This ref has not been resolved yet (otherwise it would not be a String).
-            # We will replace the path string with the schema element pointed at, thus
-            # marking it as resolved. This should prevent infinite recursions caused by
-            # self referencing.
-            schema["\$ref"] = find_ref(uri, id_map, v, parent_dir)
-        elseif k == "enum" || k == "const"
+        if k == "\$ref" && ref_unpacked
+            continue  # We've already unpacked this ref
+        elseif k in ("enum", "const")
             continue  # Don't unpack refs inside const and enum.
         else
             resolve_refs!(v, uri, id_map, parent_dir)
