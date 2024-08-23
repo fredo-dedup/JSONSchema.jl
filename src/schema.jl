@@ -21,7 +21,7 @@ end
 
 function update_id(uri::URIs.URI, s::String)
     id2 = URIs.URI(s)
-    if !isempty(id2.scheme)
+    if !isempty(id2.scheme) || (isempty(uri.uri) && startswith(s, "#"))
         return id2
     end
     els = type_to_dict(uri)
