@@ -531,7 +531,8 @@ function _validate(
     val::Number,
     path::String,
 )
-    if !isapprox(x / val, round(x / val))
+    y = x / val
+    if !isfinite(y) || !isapprox(y, round(y))
         return SingleIssue(x, path, "multipleOf", val)
     end
     return

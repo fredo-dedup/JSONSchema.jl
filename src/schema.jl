@@ -36,7 +36,11 @@ function update_id(uri::URIs.URI, s::String)
 end
 
 function get_element(schema, path::AbstractString)
-    for element in split(path, "/"; keepempty = false)
+    elements = split(path, "/"; keepempty = true)
+    if isempty(first(elements))
+        popfirst!(elements)
+    end
+    for element in elements
         schema = _recurse_get_element(schema, unescape_jpath(String(element)))
     end
     return schema
