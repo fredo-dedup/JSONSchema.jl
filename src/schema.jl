@@ -123,7 +123,7 @@ function find_ref(
                 JSON.parsefile(uri2.path);
                 parent_dir = dirname(uri2.path),
             )
-            id_map[string(uri2)] = schema.data
+            id_map[string(uri2)] = local_schema.data
         end
     end
     return get_element(id_map[string(uri2)], uri.fragment)
