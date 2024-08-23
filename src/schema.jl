@@ -28,9 +28,16 @@ function update_id(uri::URIs.URI, s::String)
     delete!(els, :uri)
     els[:fragment] = id2.fragment
     if !isempty(id2.path)
-        oldpath = match(r"^(.*/).*$", uri.path)
-        els[:path] =
-            oldpath === nothing ? id2.path : oldpath.captures[1] * id2.path
+        if startswith(id2.path, "/")  # Absolute path
+            els[:path] = id2.path
+        else # Relative path
+            old_path = match(r"^(.*/).*$", uri.path)
+            if old_path === nothing
+                els[:path] = id2.path
+            else
+                els[:path] = old_path.captures[1] * id2.path
+            end
+        end
     end
     return URIs.URI(; els...)
 end
@@ -106,13 +113,13 @@ function find_ref(
     end
     if !haskey(id_map, string(uri2))
         # id_map doesn't have this key so, fetch the ref and add it to id_map.
-        id_map[string(uri2)] = if startswith(uri2.scheme, "http")
+        if startswith(uri2.scheme, "http")
             @info("fetching remote ref $(uri2)")
-            get_remote_schema(uri2).data
+            id_map[string(uri2)] = get_remote_schema(uri2).data
         else
             @assert is_file_uri
             @info("loading local ref $(uri2)")
-            Schema(
+            id_map[string(uri2)] = Schema(
                 JSON.parsefile(uri2.path);
                 parent_dir = dirname(uri2.path),
             ).data
@@ -158,6 +165,8 @@ function resolve_refs!(
             # marking it as resolved. This should prevent infinite recursions caused by
             # self referencing.
             schema["\$ref"] = find_ref(uri, id_map, v, parent_dir)
+        elseif k == "enum" || k == "const"
+            continue  # Don't unpack refs inside const and enum.
         else
             resolve_refs!(v, uri, id_map, parent_dir)
         end
@@ -197,7 +206,10 @@ function build_id_map!(
         uri = update_id(uri, schema["\$id"])
         id_map[string(uri)] = schema
     end
-    for value in values(schema)
+    for (k, value) in schema
+        if k == "enum" || k == "const"
+            continue
+        end
         build_id_map!(id_map, value, uri)
     end
     return
