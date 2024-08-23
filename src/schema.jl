@@ -21,7 +21,7 @@ end
 
 function update_id(uri::URIs.URI, s::String)
     id2 = URIs.URI(s)
-    if !isempty(id2.scheme)
+    if !isempty(id2.scheme) || (isempty(string(uri)) && startswith(s, "#"))
         return id2
     end
     els = type_to_dict(uri)
@@ -97,7 +97,9 @@ function find_ref(
     path::String,
     parent_dir::String,
 )
-    if path == "" || path == "#"  # This path refers to the root schema.
+    if haskey(id_map, path)
+        return id_map[path] # An exact path exists. Get it.
+    elseif path == "" || path == "#"  # This path refers to the root schema.
         return id_map[string(uri)]
     elseif startswith(path, "#/")  # This path is a JPointer.
         return get_element(id_map[string(uri)], path[3:end])
