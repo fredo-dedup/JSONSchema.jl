@@ -1,19 +1,17 @@
-# JSONSchema
+# JSONSchema.jl
 
-_JSON instance validation using JSON Schemas_
-
-[![Build Status](https://github.com/fredo-dedup/JSONSchema.jl/workflows/CI/badge.svg?branch=master)](https://github.com/fredo-dedup/JSONSchema.jl/actions?query=workflow%3ACI)
+[![Build Status](https://github.com/fredo-dedup/JSONSchema.jl/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/fredo-dedup/JSONSchema.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/fredo-dedup/JSONSchema.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/fredo-dedup/JSONSchema.jl)
 
 ## Overview
 
 [JSONSchema.jl](https://github.com/fredo-dedup/JSONSchema.jl) is a JSON
-validation package for the [julia](https://julialang.org/) programming language.
-Given a [validation schema](http://json-schema.org/specification.html) this
-package can verify if any JSON instance meets all the assertions defining a
+validation package for the [Julia](https://julialang.org/) programming language.
+Given a [validation schema](http://json-schema.org/specification.html), this
+package can verify if a JSON instance meets all the assertions that define a
 valid document.
 
-This package has been validated with the
+This package has been tested with the
 [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite)
 for draft v4 and v6.
 
