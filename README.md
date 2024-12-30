@@ -8,7 +8,7 @@
 [JSONSchema.jl](https://github.com/fredo-dedup/JSONSchema.jl) is a JSON
 validation package for the [Julia](https://julialang.org/) programming language.
 Given a [validation schema](http://json-schema.org/specification.html), this
-package can verify if any JSON instance meets all the assertions that define a
+package can verify if a JSON instance meets all the assertions that define a
 valid document.
 
 This package has been tested with the
