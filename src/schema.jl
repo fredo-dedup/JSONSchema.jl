@@ -225,15 +225,6 @@ function build_id_map!(
     return
 end
 
-# Turning JSON3 read files in to base Julia dicts with string keys
-_to_base_julia(x) = x
-
-_to_base_julia(x::JSON3.Array) = _to_base_julia.(x)
-
-function _to_base_julia(x::JSON3.Object)
-    return Dict{String,Any}(string(k) => _to_base_julia(v) for (k, v) in x)
-end
-
 """
     Schema(schema::AbstractDict; parent_dir::String = abspath("."))
 
@@ -302,9 +293,5 @@ my_schema = Schema(
 ```
 """
 Schema(schema::String; kwargs...) = Schema(JSON.parse(schema); kwargs...)
-
-function Schema(schema::JSON3.Object; kwargs...)
-    return Schema(_to_base_julia(schema); kwargs...)
-end
 
 Base.show(io::IO, ::Schema) = print(io, "A JSONSchema")
