@@ -81,8 +81,9 @@ end
 Base.isvalid(schema::Schema, x) = validate(schema, x) === nothing
 
 # Fallbacks for the opposite argument.
-validate(x, schema::Schema; fail_fast::Bool = true) =
-    validate(schema, x; fail_fast)
+function validate(x, schema::Schema; fail_fast::Bool = true)
+    return validate(schema, x; fail_fast)
+end
 Base.isvalid(x, schema::Schema) = isvalid(schema, x)
 
 function _validate(x, schema, path::String)
@@ -516,14 +517,16 @@ function _additional_items!(
     return issues
 end
 
-_additional_items!(
+function _additional_items!(
     issues::Vector{SingleIssue},
     x,
     schema,
     items,
     val::Nothing,
     path,
-) = issues
+)
+    return issues
+end
 
 # 9.3.1.2
 function _validate(
