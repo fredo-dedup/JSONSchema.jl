@@ -192,6 +192,16 @@ end
 
 build_id_map!(::AbstractDict, ::Any, ::URIs.URI) = nothing
 
+_copy_schema(x) = deepcopy(x)
+
+function _copy_schema(schema::Vector)
+    return map(_copy_schema, schema)
+end
+
+function _copy_schema(schema::Dict{K}) where {K}
+    return Dict{K,Any}(k => _copy_schema(v) for (k, v) in schema)
+end
+
 function build_id_map!(
     id_map::AbstractDict,
     schema::AbstractVector,
@@ -257,7 +267,7 @@ struct Schema
             )
             parent_dir = parentFileDirectory
         end
-        schema = deepcopy(schema)  # Ensure we don't modify the user's data!
+        schema = _copy_schema(schema)  # Ensure we don't modify the user's data!
         id_map = build_id_map(schema)
         resolve_refs!(schema, URIs.URI(), id_map, parent_dir)
         return new(schema)
