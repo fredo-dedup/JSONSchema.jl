@@ -235,14 +235,9 @@ end
     allof_schema = JSONSchema.Schema(
         Dict(
             "allOf" => [
-                Dict(
-                    "properties" =>
-                        Dict("name" => Dict("type" => "string")),
-                ),
-                Dict(
-                    "properties" =>
-                        Dict("count" => Dict("minimum" => 2)),
-                ),
+                Dict("properties" =>
+                        Dict("name" => Dict("type" => "string"))),
+                Dict("properties" => Dict("count" => Dict("minimum" => 2))),
             ],
         ),
     )
