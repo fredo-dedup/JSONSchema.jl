@@ -228,6 +228,18 @@ end
     schema_2 = JSONSchema.Schema(false)
     @test typeof(schema_2) == Schema
     @test typeof(schema_2.data) == Bool
+
+    schema_dict = Dict(
+        "properties" =>
+            Dict("age" => Dict("\$ref" => "#/\$defs/positiveNumber")),
+        "\$defs" => Dict(
+            "positiveNumber" => Dict("type" => "number", "minimum" => 0),
+        ),
+    )
+    schema = JSONSchema.Schema(schema_dict)
+    @test isvalid(schema, Dict("age" => 1))
+    @test !isvalid(schema, Dict("age" => -1))
+    @test schema_dict["properties"]["age"]["\$ref"] == "#/\$defs/positiveNumber"
 end
 
 @testset "Base.show" begin
