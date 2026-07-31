@@ -22,11 +22,15 @@ schema value: $(issue.val)""",
 end
 
 """
-    validate(s::Schema, x)
+    validate(s::Schema, x; fail_fast::Bool = true)
 
-Validate the object `x` against the Schema `s`. If valid, return `nothing`, else
-return a `SingleIssue`. When printed, the returned `SingleIssue` describes the
-reason why the validation failed.
+Validate the object `x` against the Schema `s`. By default, if valid, return
+`nothing`, else return a `SingleIssue`. When printed, the returned `SingleIssue`
+describes the reason why the validation failed.
+
+Set `fail_fast = false` to collect all validation issues. In this mode,
+`validate` returns a `Vector{SingleIssue}`. The vector is empty if validation
+succeeds.
 
 
 Note that if `x` is a `String` in JSON format, you must use `JSON.parse(x)`
@@ -65,14 +69,21 @@ schema key:   required
 schema value: ["foo"]
 ```
 """
-function validate(schema::Schema, x)
+function validate(schema::Schema, x; fail_fast::Bool = true)
+    if !fail_fast
+        issues = SingleIssue[]
+        _validate!(issues, x, schema.data, "")
+        return issues
+    end
     return _validate(x, schema.data, "")
 end
 
 Base.isvalid(schema::Schema, x) = validate(schema, x) === nothing
 
 # Fallbacks for the opposite argument.
-validate(x, schema::Schema) = validate(schema, x)
+function validate(x, schema::Schema; fail_fast::Bool = true)
+    return validate(schema, x; fail_fast)
+end
 Base.isvalid(x, schema::Schema) = isvalid(schema, x)
 
 function _validate(x, schema, path::String)
@@ -97,6 +108,45 @@ function _validate_entry(x, schema::Bool, path::String)
     return
 end
 
+function _validate!(issues::Vector{SingleIssue}, x, schema, path::String)
+    schema = _resolve_refs(schema)
+    return _validate_entry!(issues, x, schema, path)
+end
+
+function _validate_entry!(
+    issues::Vector{SingleIssue},
+    x,
+    schema::AbstractDict,
+    path::String,
+)
+    for (k, v) in schema
+        if Symbol(k) in (:then, :else)
+            continue  # Handled by the `if` keyword.
+        end
+        _validate!(issues, x, schema, Val{Symbol(k)}(), v, path)
+    end
+    return issues
+end
+
+function _validate_entry!(
+    issues::Vector{SingleIssue},
+    x,
+    schema::Bool,
+    path::String,
+)
+    if !schema
+        push!(issues, SingleIssue(x, path, "schema", schema))
+    end
+    return issues
+end
+
+function _record!(issues::Vector{SingleIssue}, issue::SingleIssue)
+    push!(issues, issue)
+    return issues
+end
+
+_record!(issues::Vector{SingleIssue}, ::Nothing) = issues
+
 function _resolve_refs(schema::AbstractDict, explored_refs = Any[schema])
     if !haskey(schema, "\$ref")
         return schema
@@ -112,6 +162,17 @@ _resolve_refs(schema, explored_refs = Any[]) = schema
 
 # Default fallback
 _validate(::Any, ::Any, ::Val, ::Any, ::String) = nothing
+
+function _validate!(
+    issues::Vector{SingleIssue},
+    x,
+    schema,
+    key::Val,
+    val,
+    path::String,
+)
+    return _record!(issues, _validate(x, schema, key, val, path))
+end
 
 # JSON treats == between Bool and Number differently to Julia, so:
 #   false != 0
@@ -148,6 +209,20 @@ function _validate(x, schema, ::Val{:allOf}, val::AbstractVector, path::String)
         end
     end
     return
+end
+
+function _validate!(
+    issues::Vector{SingleIssue},
+    x,
+    schema,
+    ::Val{:allOf},
+    val::AbstractVector,
+    path::String,
+)
+    for v in val
+        _validate!(issues, x, v, path)
+    end
+    return issues
 end
 
 # 9.2.1.2
@@ -194,6 +269,21 @@ function _validate(x, schema, ::Val{:if}, val, path::String)
     return
 end
 
+function _validate!(
+    issues::Vector{SingleIssue},
+    x,
+    schema,
+    ::Val{:if},
+    val,
+    path::String,
+)
+    # ignore if without then or else
+    if haskey(schema, "then") || haskey(schema, "else")
+        return _if_then_else!(issues, x, schema, path)
+    end
+    return issues
+end
+
 # 9.2.2.2: then
 function _validate(x, schema, ::Val{:then}, val, path::String)
     # ignore then without if
@@ -203,6 +293,17 @@ function _validate(x, schema, ::Val{:then}, val, path::String)
     return
 end
 
+function _validate!(
+    issues::Vector{SingleIssue},
+    x,
+    schema,
+    ::Val{:then},
+    val,
+    path::String,
+)
+    return issues  # Handled by the `if` keyword.
+end
+
 # 9.2.2.3: else
 function _validate(x, schema, ::Val{:else}, val, path::String)
     # ignore else without if
@@ -210,6 +311,17 @@ function _validate(x, schema, ::Val{:else}, val, path::String)
         return _if_then_else(x, schema, path)
     end
     return
+end
+
+function _validate!(
+    issues::Vector{SingleIssue},
+    x,
+    schema,
+    ::Val{:else},
+    val,
+    path::String,
+)
+    return issues  # Handled by the `if` keyword.
 end
 
 """
@@ -245,6 +357,17 @@ function _if_then_else(x, schema, path)
     return
 end
 
+function _if_then_else!(issues::Vector{SingleIssue}, x, schema, path)
+    if _validate(x, schema["if"], path) !== nothing
+        if haskey(schema, "else")
+            _validate!(issues, x, schema["else"], path)
+        end
+    elseif haskey(schema, "then")
+        _validate!(issues, x, schema["then"], path)
+    end
+    return issues
+end
+
 ###
 ### Checks for Arrays.
 ###
@@ -269,6 +392,23 @@ function _validate(
     return _additional_items(x, schema, items, additionalItems, path)
 end
 
+function _validate!(
+    issues::Vector{SingleIssue},
+    x::AbstractVector,
+    schema,
+    ::Val{:items},
+    val::AbstractDict,
+    path::String,
+)
+    items = fill(false, length(x))
+    for (i, xi) in enumerate(x)
+        _validate!(issues, xi, val, path * "[$(i)]")
+        items[i] = true
+    end
+    additionalItems = get(schema, "additionalItems", nothing)
+    return _additional_items!(issues, x, schema, items, additionalItems, path)
+end
+
 function _validate(
     x::AbstractVector,
     schema,
@@ -289,6 +429,26 @@ function _validate(
     end
     additionalItems = get(schema, "additionalItems", nothing)
     return _additional_items(x, schema, items, additionalItems, path)
+end
+
+function _validate!(
+    issues::Vector{SingleIssue},
+    x::AbstractVector,
+    schema,
+    ::Val{:items},
+    val::AbstractVector,
+    path::String,
+)
+    items = fill(false, length(x))
+    for (i, xi) in enumerate(x)
+        if i > length(val)
+            break
+        end
+        _validate!(issues, xi, val[i], path * "[$(i)]")
+        items[i] = true
+    end
+    additionalItems = get(schema, "additionalItems", nothing)
+    return _additional_items!(issues, x, schema, items, additionalItems, path)
 end
 
 function _validate(
@@ -325,6 +485,48 @@ function _additional_items(x, schema, items, val::Bool, path)
 end
 
 _additional_items(x, schema, items, val::Nothing, path) = nothing
+
+function _additional_items!(
+    issues::Vector{SingleIssue},
+    x,
+    schema,
+    items,
+    val,
+    path,
+)
+    for i in 1:length(x)
+        if items[i]
+            continue  # Validated against 'items'.
+        end
+        _validate!(issues, x[i], val, path * "[$(i)]")
+    end
+    return issues
+end
+
+function _additional_items!(
+    issues::Vector{SingleIssue},
+    x,
+    schema,
+    items,
+    val::Bool,
+    path,
+)
+    if !val && !all(items)
+        push!(issues, SingleIssue(x, path, "additionalItems", val))
+    end
+    return issues
+end
+
+function _additional_items!(
+    issues::Vector{SingleIssue},
+    x,
+    schema,
+    items,
+    val::Nothing,
+    path,
+)
+    return issues
+end
 
 # 9.3.1.2
 function _validate(
@@ -379,6 +581,22 @@ function _validate(
     return
 end
 
+function _validate!(
+    issues::Vector{SingleIssue},
+    x::AbstractDict,
+    schema,
+    ::Val{:properties},
+    val::AbstractDict,
+    path::String,
+)
+    for (k, v) in x
+        if haskey(val, k)
+            _validate!(issues, v, val[k], path * "[$(k)]")
+        end
+    end
+    return issues
+end
+
 # 9.3.2.2
 function _validate(
     x::AbstractDict,
@@ -393,13 +611,32 @@ function _validate(
             if match(r, k_x) === nothing
                 continue
             end
-            ret = _validate(v_x, v_val, path * "[$(k_x)")
+            ret = _validate(v_x, v_val, path * "[$(k_x)]")
             if ret !== nothing
                 return ret
             end
         end
     end
     return
+end
+
+function _validate!(
+    issues::Vector{SingleIssue},
+    x::AbstractDict,
+    schema,
+    ::Val{:patternProperties},
+    val::AbstractDict,
+    path::String,
+)
+    for (k_val, v_val) in val
+        r = Regex(k_val)
+        for (k_x, v_x) in x
+            if match(r, k_x) !== nothing
+                _validate!(issues, v_x, v_val, path * "[$(k_x)]")
+            end
+        end
+    end
+    return issues
 end
 
 # 9.3.2.3
@@ -423,6 +660,26 @@ function _validate(
         end
     end
     return
+end
+
+function _validate!(
+    issues::Vector{SingleIssue},
+    x::AbstractDict,
+    schema,
+    ::Val{:additionalProperties},
+    val::AbstractDict,
+    path::String,
+)
+    properties = get(schema, "properties", Dict{String,Any}())
+    patternProperties = get(schema, "patternProperties", Dict{String,Any}())
+    for (k, v) in x
+        if k in keys(properties) ||
+           any(r -> match(Regex(r), k) !== nothing, keys(patternProperties))
+            continue
+        end
+        _validate!(issues, v, val, path * "[$(k)]")
+    end
+    return issues
 end
 
 function _validate(
@@ -464,6 +721,20 @@ function _validate(
         end
     end
     return
+end
+
+function _validate!(
+    issues::Vector{SingleIssue},
+    x::AbstractDict,
+    schema,
+    ::Val{:propertyNames},
+    val,
+    path::String,
+)
+    for k in keys(x)
+        _validate!(issues, k, val, path)
+    end
+    return issues
 end
 
 ###

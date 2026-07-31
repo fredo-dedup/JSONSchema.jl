@@ -59,8 +59,8 @@ julia> validate(my_schema, data_pass)
 
 ```
 
-If the validation fails, a struct is returned that, when printed, explains the
-reason for the failure:
+By default, if the validation fails, a struct is returned that, when printed,
+explains the reason for the failure:
 ```julia
 julia> data_fail = Dict("bar" => 12.5)
 Dict{String,Float64} with 1 entry:
@@ -68,6 +68,19 @@ Dict{String,Float64} with 1 entry:
 
 julia> validate(my_schema, data_fail)
 Validation failed:
+path:         top-level
+instance:     Dict("bar"=>12.5)
+schema key:   required
+schema value: ["foo"]
+```
+
+Pass `fail_fast = false` to collect every validation issue in one pass. In this
+mode, `validate` returns a vector of issue structs, or an empty vector when the
+instance is valid:
+```julia
+julia> issues = validate(my_schema, data_fail; fail_fast = false)
+1-element Vector{JSONSchema.SingleIssue}:
+ Validation failed:
 path:         top-level
 instance:     Dict("bar"=>12.5)
 schema key:   required

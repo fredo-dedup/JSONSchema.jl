@@ -210,6 +210,66 @@ end
     @test JSONSchema.diagnose(data_fail, schema) == fail_msg
 end
 
+@testset "Validate all issues" begin
+    schema = JSONSchema.Schema(
+        Dict(
+            "properties" => Dict(
+                "Title" => Dict("type" => "string"),
+                "Desc" => Dict("type" => "string"),
+            ),
+        ),
+    )
+    data = Dict("Title" => nothing, "Desc" => 15)
+
+    @test JSONSchema.validate(schema, data) isa JSONSchema.SingleIssue
+    issues = JSONSchema.validate(schema, data; fail_fast = false)
+    @test issues isa Vector{JSONSchema.SingleIssue}
+    @test Set(issue.path for issue in issues) == Set(["[Title]", "[Desc]"])
+    @test all(issue.reason == "type" for issue in issues)
+
+    @test JSONSchema.validate(data, schema; fail_fast = false) == issues
+    @test isempty(
+        JSONSchema.validate(schema, Dict("Title" => "ok"); fail_fast = false),
+    )
+
+    allof_schema = JSONSchema.Schema(
+        Dict(
+            "allOf" => [
+                Dict("properties" =>
+                        Dict("name" => Dict("type" => "string"))),
+                Dict("properties" => Dict("count" => Dict("minimum" => 2))),
+            ],
+        ),
+    )
+    issues = JSONSchema.validate(
+        allof_schema,
+        Dict("name" => 1, "count" => 1);
+        fail_fast = false,
+    )
+    @test Set((issue.path, issue.reason) for issue in issues) ==
+          Set([("[name]", "type"), ("[count]", "minimum")])
+
+    conditional_schema = JSONSchema.Schema(
+        Dict(
+            "if" => Dict(
+                "properties" => Dict("kind" => Dict("const" => "full")),
+            ),
+            "then" => Dict(
+                "properties" => Dict(
+                    "name" => Dict("type" => "string"),
+                    "count" => Dict("type" => "integer"),
+                ),
+            ),
+        ),
+    )
+    issues = JSONSchema.validate(
+        conditional_schema,
+        Dict("kind" => "full", "name" => 1, "count" => "many");
+        fail_fast = false,
+    )
+    @test Set(issue.path for issue in issues) == Set(["[name]", "[count]"])
+end
+
 @testset "parentFileDirectory deprecation" begin
     schema = JSONSchema.Schema("{}"; parentFileDirectory = ".")
     @test typeof(schema) == Schema
