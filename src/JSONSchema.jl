@@ -11,6 +11,7 @@ import URIs
 
 export Schema, validate
 
+include("resources.jl")
 include("schema.jl")
 include("generation.jl")
 include("validation.jl")

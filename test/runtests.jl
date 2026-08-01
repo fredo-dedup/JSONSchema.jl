@@ -31,6 +31,8 @@ end
 
 const LOCAL_TEST_DIR = mktempdir(SCHEMA_TEST_DIR)
 
+include("resources.jl")
+
 # Write test files for locally referenced schema files.
 #
 # These files have the same format as JSON Schema org test files. They are written
