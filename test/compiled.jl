@@ -475,6 +475,44 @@ end
     @test !isvalid(modern, 0)
     @test isvalid(modern, 1)
 
+    application_dialect = "https://example.org/dialect/application"
+    aliased = JSONSchema.CompiledSchema(
+        Dict(
+            "\$schema" => application_dialect,
+            "type" => "integer",
+            "minimum" => 1,
+        );
+        dialect_aliases = Dict(application_dialect => :draft202012),
+    )
+    @test aliased.dialect === JSONSchema.DRAFT202012
+    @test isvalid(aliased, 1)
+    @test !isvalid(aliased, 0)
+    aliases = aliased.dialect_aliases
+    empty!(aliases)
+    @test haskey(aliased.dialect_aliases, application_dialect)
+
+    aliased_resource_id = Resources.ResourceId("urn:application:schema")
+    aliased_resource = Resources.Resource(
+        aliased_resource_id,
+        Dict(
+            "\$schema" => application_dialect,
+            "type" => "string",
+            "minLength" => 2,
+        ),
+    )
+    aliased_graph = JSONSchema.CompiledSchemas(
+        [aliased_resource],
+        [Resources.NodeId(aliased_resource_id, Resources.JSONPointer())];
+        dialect_aliases = Dict(application_dialect => JSONSchema.DRAFT202012),
+    )
+    aliased_root = JSONSchema.select(aliased_graph, aliased_resource_id)
+    @test isvalid(aliased_root, "ok")
+    @test !isvalid(aliased_root, "x")
+    @test_throws ArgumentError JSONSchema.CompiledSchema(
+        Dict("type" => "integer");
+        dialect_aliases = Dict(1 => JSONSchema.DRAFT202012),
+    )
+
     @test_throws ArgumentError JSONSchema.CompiledSchemas(
         Resources.Resource[],
         Resources.NodeId[];

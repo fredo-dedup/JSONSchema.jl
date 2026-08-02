@@ -88,6 +88,15 @@ function Compiler(
     )
 end
 
+function _register_dialect_aliases!(compiler::Compiler, aliases::AbstractDict)
+    for (uri, target) in aliases
+        uri isa AbstractString ||
+            throw(ArgumentError("dialect alias identifiers must be strings"))
+        compiler.dialect_aliases[_normalized_dialect_uri(uri)] = dialect(target)
+    end
+    return compiler
+end
+
 """A non-mutating, dialect-aware JSON Schema resource graph."""
 struct CompiledSchema{R<:Resources.AbstractRetriever}
     data::Union{Resources.FrozenObject,Bool}
@@ -95,6 +104,7 @@ struct CompiledSchema{R<:Resources.AbstractRetriever}
     registry::Resources.FrozenRegistry
     root::Resources.NodeId
     dialects::Dict{Resources.NodeId,Dialect}
+    dialect_aliases::Dict{String,Dialect}
     evaluation_nodes::Dict{Resources.NodeId,CompiledNode}
     transitions::Dict{Tuple{Int,Tuple{Vararg{String}}},CompiledNode}
     uses_annotations::Bool
@@ -120,9 +130,14 @@ function Base.getproperty(schemas::CompiledSchemas, name::Symbol)
 end
 
 function Base.getproperty(schema::CompiledSchema, name::Symbol)
-    name in
-    (:dialects, :evaluation_nodes, :transitions, :references, :regexes) &&
-        return copy(getfield(schema, name))
+    name in (
+        :dialects,
+        :dialect_aliases,
+        :evaluation_nodes,
+        :transitions,
+        :references,
+        :regexes,
+    ) && return copy(getfield(schema, name))
     name === :recursive_anchors && return copy(getfield(schema, name))
     return getfield(schema, name)
 end
@@ -1179,6 +1194,7 @@ function CompiledSchema(
     dialect::Union{Dialect,Symbol,AbstractString} = DRAFT7,
     base_uri = nothing,
     parent_dir::Union{Nothing,AbstractString} = nothing,
+    dialect_aliases::AbstractDict = Dict{String,Dialect}(),
     retriever::Resources.AbstractRetriever = Resources.DisabledRetriever(),
     max_resources::Integer = 256,
     max_nodes::Integer = 1_000_000,
@@ -1187,6 +1203,7 @@ function CompiledSchema(
     default_dialect = JSONSchema.dialect(dialect)
     retrieval = _resource_id(base_uri, parent_dir)
     compiler = Compiler(retriever, max_resources, max_nodes, max_depth)
+    _register_dialect_aliases!(compiler, dialect_aliases)
     root, frozen, schema_dialect =
         _compile_resource!(compiler, schema, retrieval, default_dialect)
     _resolve_pending!(compiler)
@@ -1196,6 +1213,7 @@ function CompiledSchema(
         Resources.freeze(compiler.registry),
         root,
         copy(compiler.dialects),
+        copy(compiler.dialect_aliases),
         copy(compiler.evaluation_nodes),
         copy(compiler.transitions),
         compiler.uses_annotations,
@@ -1217,6 +1235,7 @@ function _compiled_schema(compiler::Compiler, root::Resources.NodeId)
         Resources.freeze(compiler.registry),
         canonical,
         copy(compiler.dialects),
+        copy(compiler.dialect_aliases),
         copy(compiler.evaluation_nodes),
         copy(compiler.transitions),
         compiler.uses_annotations,
@@ -1246,13 +1265,16 @@ resources. `roots` contains `Resources.NodeId` values. All roots are scanned
 before references are resolved, so a reference can target a sibling schema by
 its `\$id` or anchor without retrieving another document. `root_dialects` can
 map each requested or canonical root to a `Dialect`, registered dialect symbol,
-or dialect URI. Roots not in the map use `dialect`.
+or dialect URI. Roots not in the map use `dialect`. `dialect_aliases` maps
+application dialect URI strings to compatible built-in dialects without
+retrieving a meta-schema.
 """
 function CompiledSchemas(
     resources::AbstractVector{<:Resources.Resource},
     roots::AbstractVector{<:Resources.NodeId};
     dialect::Union{Dialect,Symbol,AbstractString} = DRAFT7,
     root_dialects::AbstractDict = Dict{Resources.NodeId,Dialect}(),
+    dialect_aliases::AbstractDict = Dict{String,Dialect}(),
     retriever::Resources.AbstractRetriever = Resources.DisabledRetriever(),
     max_resources::Integer = 256,
     max_nodes::Integer = 1_000_000,
@@ -1266,6 +1288,7 @@ function CompiledSchemas(
         throw(ArgumentError("initial resources exceed max_resources"))
     default_dialect = JSONSchema.dialect(dialect)
     compiler = Compiler(retriever, max_resources, max_nodes, max_depth)
+    _register_dialect_aliases!(compiler, dialect_aliases)
     for resource in resources
         try
             _check_source!(compiler, resource.contents)
@@ -1354,6 +1377,7 @@ function select(schemas::CompiledSchemas, requested::Resources.NodeId)
         template.registry,
         root,
         getfield(template, :dialects),
+        getfield(template, :dialect_aliases),
         getfield(template, :evaluation_nodes),
         getfield(template, :transitions),
         template.uses_annotations,
@@ -1390,6 +1414,7 @@ function subschema(schemas::CompiledSchemas, requested::Resources.NodeId)
         template.registry,
         root,
         getfield(template, :dialects),
+        getfield(template, :dialect_aliases),
         getfield(template, :evaluation_nodes),
         getfield(template, :transitions),
         template.uses_annotations,
@@ -1412,6 +1437,7 @@ function CompiledSchema(
     resource::Resources.Resource,
     pointer::Resources.JSONPointer = Resources.JSONPointer();
     dialect::Union{Dialect,Symbol,AbstractString} = DRAFT7,
+    dialect_aliases::AbstractDict = Dict{String,Dialect}(),
     retriever::Resources.AbstractRetriever = Resources.DisabledRetriever(),
     max_resources::Integer = 256,
     max_nodes::Integer = 1_000_000,
@@ -1419,6 +1445,7 @@ function CompiledSchema(
 )
     default_dialect = JSONSchema.dialect(dialect)
     compiler = Compiler(retriever, max_resources, max_nodes, max_depth)
+    _register_dialect_aliases!(compiler, dialect_aliases)
     try
         _check_source!(compiler, resource.contents)
         Resources.register!(compiler.registry, resource)
@@ -1471,6 +1498,7 @@ function CompiledSchema(
         Resources.freeze(compiler.registry),
         root,
         copy(compiler.dialects),
+        copy(compiler.dialect_aliases),
         copy(compiler.evaluation_nodes),
         copy(compiler.transitions),
         compiler.uses_annotations,

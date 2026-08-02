@@ -215,6 +215,18 @@ property = JSONSchema.subschema(
 )
 ```
 
+Applications that extend a built-in dialect can map their dialect URI to the
+compatible implementation. This avoids network retrieval of a meta-schema:
+
+```julia
+schema = JSONSchema.CompiledSchema(
+    application_schema;
+    dialect_aliases = Dict(
+        "https://example.com/dialect/v1" => JSONSchema.DRAFT202012,
+    ),
+)
+```
+
 Compilation is bounded by `max_resources`, `max_nodes`, and `max_depth`.
 Validation is bounded by `max_evaluations`, `max_issues`, and `max_depth`.
 Reference cycles that do not make progress raise `JSONSchema.EvaluationError`
