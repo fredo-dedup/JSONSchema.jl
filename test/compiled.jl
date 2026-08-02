@@ -406,6 +406,22 @@ end
     )
     @test isvalid(value_property, "ok")
     @test !isvalid(value_property, 1)
+    result_value_node = Resources.NodeId(
+        Resources.ResourceId("https://example.com/result"),
+        Resources.JSONPointer("/properties/value"),
+    )
+    expected_value_node = Resources.NodeId(
+        Resources.ResourceId("https://example.com/value"),
+        Resources.JSONPointer(),
+    )
+    @test JSONSchema.reference_target(schemas, result_value_node) ==
+          expected_value_node
+    @test JSONSchema.reference_target(
+        schemas,
+        Resources.NodeId(document_id, value_pointer),
+    ) === nothing
+    @test JSONSchema.reference_target(result, result_value_node) ==
+          expected_value_node
 
     roots_copy = schemas.roots
     empty!(roots_copy)

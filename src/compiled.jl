@@ -142,6 +142,34 @@ function Base.getproperty(schema::CompiledSchema, name::Symbol)
     return getfield(schema, name)
 end
 
+"""
+    reference_target(schema, source[, keyword="\$ref"])
+
+Return the canonical target node bound to a reference keyword at `source`.
+Return `nothing` when the compiled graph has no such binding. This lookup does
+not copy the graph's reference table.
+"""
+function reference_target(
+    schema::CompiledSchema,
+    source::Resources.NodeId,
+    keyword::AbstractString = "\$ref",
+)
+    canonical = Resources.canonical(schema.registry, source)
+    return get(
+        getfield(schema, :references),
+        (canonical, String(keyword)),
+        nothing,
+    )
+end
+
+function reference_target(
+    schemas::CompiledSchemas,
+    source::Resources.NodeId,
+    keyword::AbstractString = "\$ref",
+)
+    return reference_target(getfield(schemas, :template), source, keyword)
+end
+
 function _directory_resource(parent_dir::AbstractString)
     path = abspath(expanduser(parent_dir))
     endswith(path, Base.Filesystem.path_separator) ||
