@@ -1166,7 +1166,7 @@ function _load_reference!(
     return
 end
 
-function _source_node(registry::Resources.Registry, node::Resources.NodeId)
+function _source_node(registry::Resources.AbstractRegistry, node::Resources.NodeId)
     registered = Resources.resource(registry, node.resource)
     pointer = registered.source.pointer
     for token in node.pointer
@@ -1427,6 +1427,11 @@ end
 """Return a compiled view of any schema node scanned in a schema graph."""
 function subschema(schemas::CompiledSchemas, requested::Resources.NodeId)
     template = getfield(schemas, :template)
+    return subschema(template, requested)
+end
+
+"""Return a compiled view of any schema node scanned in a compiled graph."""
+function subschema(template::CompiledSchema, requested::Resources.NodeId)
     canonical = Resources.canonical(template.registry, requested)
     node = get(getfield(template, :evaluation_nodes), canonical, nothing)
     node === nothing && throw(

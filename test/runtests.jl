@@ -39,6 +39,7 @@ const LOCAL_TEST_DIR = mktempdir(SCHEMA_TEST_DIR)
 
 include("resources.jl")
 include("compiled.jl")
+include("rebase.jl")
 
 @testset "Compiled JSON3 interop" begin
     schema = JSONSchema.CompiledSchema(JSON3.read("{\"type\":\"object\"}"))
