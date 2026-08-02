@@ -350,6 +350,101 @@ end
     @test !isvalid(nested_compiled, "text")
 end
 
+@testset "Multiple embedded schema roots" begin
+    document_id = Resources.ResourceId("https://example.com/api.json")
+    document = Resources.Resource(
+        document_id,
+        Dict(
+            "components" => Dict(
+                "schemas" => Dict(
+                    # Keep the referring schema first. Compilation must not
+                    # depend on object or root order.
+                    "Result" => Dict(
+                        "\$id" => "result",
+                        "type" => "object",
+                        "properties" => Dict(
+                            "value" => Dict("\$ref" => "value"),
+                        ),
+                        "required" => ["value"],
+                    ),
+                    "Value" => Dict(
+                        "\$id" => "value",
+                        "type" => "string",
+                        "minLength" => 2,
+                    ),
+                    "Pointer" => Dict("\$ref" => "#/components/schemas/Value"),
+                ),
+            ),
+        ),
+    )
+    result_pointer = Resources.JSONPointer("/components/schemas/Result")
+    value_pointer = Resources.JSONPointer("/components/schemas/Value")
+    pointer_pointer = Resources.JSONPointer("/components/schemas/Pointer")
+    roots = [result_pointer, value_pointer, pointer_pointer]
+    schemas = JSONSchema.CompiledSchemas(
+        document,
+        roots;
+        dialect = JSONSchema.DRAFT202012,
+    )
+
+    result = JSONSchema.select(
+        schemas,
+        Resources.NodeId(document_id, result_pointer),
+    )
+    value = JSONSchema.select(schemas, document_id, value_pointer)
+    pointer = JSONSchema.select(schemas, document_id, pointer_pointer)
+    @test isvalid(result, Dict("value" => "ok"))
+    @test !isvalid(result, Dict("value" => "x"))
+    @test isvalid(value, "ok")
+    @test !isvalid(value, 1)
+    @test isvalid(pointer, "ok")
+    @test !isvalid(pointer, 1)
+
+    roots_copy = schemas.roots
+    empty!(roots_copy)
+    @test isvalid(value, "still immutable")
+    @test_throws ArgumentError JSONSchema.select(
+        schemas,
+        document_id,
+        Resources.JSONPointer("/components/schemas/Missing"),
+    )
+
+    external_id = Resources.ResourceId("https://example.net/shared.json")
+    external = Resources.Resource(
+        external_id,
+        Dict("schemas" => Dict("Count" => Dict("type" => "integer"))),
+    )
+    external_pointer = Resources.JSONPointer("/schemas/Count")
+    combined = JSONSchema.CompiledSchemas(
+        [document, external],
+        [
+            Resources.NodeId(document_id, value_pointer),
+            Resources.NodeId(external_id, external_pointer),
+        ];
+        dialect = JSONSchema.DRAFT202012,
+    )
+    count = JSONSchema.select(combined, external_id, external_pointer)
+    @test isvalid(count, 1)
+    @test !isvalid(count, "one")
+
+    @test_throws ArgumentError JSONSchema.CompiledSchemas(
+        Resources.Resource[],
+        Resources.NodeId[];
+        dialect = JSONSchema.DRAFT202012,
+    )
+    @test_throws ArgumentError JSONSchema.CompiledSchemas(
+        [document],
+        Resources.NodeId[];
+        dialect = JSONSchema.DRAFT202012,
+    )
+    @test_throws ArgumentError JSONSchema.CompiledSchemas(
+        [document, external],
+        [Resources.NodeId(document_id, value_pointer)];
+        dialect = JSONSchema.DRAFT202012,
+        max_resources = 1,
+    )
+end
+
 @testset "Compiled evaluation performance and concurrency" begin
     schema = Dict{String,Any}("type" => "integer")
     instance = 1

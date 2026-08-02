@@ -104,6 +104,21 @@ struct CompiledSchema{R<:Resources.AbstractRetriever}
     retriever::R
 end
 
+"""A compiled graph with multiple JSON Schema roots embedded in JSON resources."""
+struct CompiledSchemas{R<:Resources.AbstractRetriever}
+    template::CompiledSchema{R}
+    roots::Dict{Resources.NodeId,Resources.NodeId}
+
+    function CompiledSchemas(template::CompiledSchema{R}, roots) where {R}
+        return new{R}(template, copy(roots))
+    end
+end
+
+function Base.getproperty(schemas::CompiledSchemas, name::Symbol)
+    name === :roots && return copy(getfield(schemas, :roots))
+    return getfield(schemas, name)
+end
+
 function Base.getproperty(schema::CompiledSchema, name::Symbol)
     name in
     (:dialects, :evaluation_nodes, :transitions, :references, :regexes) &&
@@ -1189,6 +1204,148 @@ function CompiledSchema(
         copy(compiler.regexes),
         retriever,
     )
+end
+
+function _compiled_schema(compiler::Compiler, root::Resources.NodeId)
+    canonical = Resources.canonical(compiler.registry, root)
+    resource = Resources.resource(compiler.registry, canonical.resource)
+    data = Resources.resolve(resource.contents, canonical.pointer)
+    schema_dialect = get(compiler.dialects, canonical, DRAFT7)
+    return CompiledSchema(
+        data,
+        schema_dialect,
+        Resources.freeze(compiler.registry),
+        canonical,
+        copy(compiler.dialects),
+        copy(compiler.evaluation_nodes),
+        copy(compiler.transitions),
+        compiler.uses_annotations,
+        copy(compiler.recursive_anchors),
+        copy(compiler.references),
+        copy(compiler.regexes),
+        compiler.retriever,
+    )
+end
+
+"""
+    CompiledSchemas(resources, roots; options...)
+
+Compile several JSON Schema roots embedded in one or more registered JSON
+resources. `roots` contains `Resources.NodeId` values. All roots are scanned
+before references are resolved, so a reference can target a sibling schema by
+its `\$id` or anchor without retrieving another document.
+"""
+function CompiledSchemas(
+    resources::AbstractVector{<:Resources.Resource},
+    roots::AbstractVector{<:Resources.NodeId};
+    dialect::Union{Dialect,Symbol,AbstractString} = DRAFT7,
+    retriever::Resources.AbstractRetriever = Resources.DisabledRetriever(),
+    max_resources::Integer = 256,
+    max_nodes::Integer = 1_000_000,
+    max_depth::Integer = 512,
+)
+    isempty(resources) &&
+        throw(ArgumentError("at least one resource is required"))
+    isempty(roots) &&
+        throw(ArgumentError("at least one schema root is required"))
+    length(resources) <= max_resources ||
+        throw(ArgumentError("initial resources exceed max_resources"))
+    default_dialect = JSONSchema.dialect(dialect)
+    compiler = Compiler(retriever, max_resources, max_nodes, max_depth)
+    for resource in resources
+        try
+            _check_source!(compiler, resource.contents)
+            Resources.register!(compiler.registry, resource)
+            push!(compiler.loaded, resource.id)
+            push!(compiler.loaded, resource.retrieval)
+        catch error
+            throw(CompilationError(resource.source, sprint(showerror, error)))
+        end
+    end
+    compiled_roots = Dict{Resources.NodeId,Resources.NodeId}()
+    for requested in roots
+        registered = try
+            Resources.resource(compiler.registry, requested.resource)
+        catch error
+            throw(CompilationError(requested, sprint(showerror, error)))
+        end
+        raw = Resources.NodeId(registered.id, requested.pointer)
+        value = try
+            Resources.resolve(registered.contents, requested.pointer)
+        catch error
+            throw(CompilationError(raw, sprint(showerror, error)))
+        end
+        (value isa AbstractDict || value isa Bool) || throw(
+            CompilationError(
+                raw,
+                "the selected value is not an object or boolean schema",
+            ),
+        )
+        root = _scan!(
+            compiler,
+            value,
+            raw,
+            _source_node(compiler.registry, raw),
+            default_dialect;
+            resource_root = true,
+        )
+        compiled_roots[requested] = root
+        compiled_roots[raw] = root
+    end
+    _resolve_pending!(compiler)
+    for (requested, root) in collect(compiled_roots)
+        compiled_roots[requested] = Resources.canonical(compiler.registry, root)
+    end
+    template = _compiled_schema(compiler, first(values(compiled_roots)))
+    return CompiledSchemas(template, compiled_roots)
+end
+
+function CompiledSchemas(
+    resource::Resources.Resource,
+    pointers::AbstractVector{<:Resources.JSONPointer};
+    kwargs...,
+)
+    roots = Resources.NodeId[
+        Resources.NodeId(resource.id, pointer) for pointer in pointers
+    ]
+    return CompiledSchemas([resource], roots; kwargs...)
+end
+
+function select(schemas::CompiledSchemas, requested::Resources.NodeId)
+    template = getfield(schemas, :template)
+    roots = getfield(schemas, :roots)
+    root = get(roots, requested, nothing)
+    if root === nothing
+        canonical = Resources.canonical(template.registry, requested)
+        root = get(roots, canonical, nothing)
+    end
+    root === nothing &&
+        throw(ArgumentError("the requested node is not a compiled schema root"))
+    resource = Resources.resource(template.registry, root.resource)
+    data = Resources.resolve(resource.contents, root.pointer)
+    schema_dialect = get(getfield(template, :dialects), root, template.dialect)
+    return CompiledSchema(
+        data,
+        schema_dialect,
+        template.registry,
+        root,
+        getfield(template, :dialects),
+        getfield(template, :evaluation_nodes),
+        getfield(template, :transitions),
+        template.uses_annotations,
+        template.recursive_anchors,
+        getfield(template, :references),
+        getfield(template, :regexes),
+        template.retriever,
+    )
+end
+
+function select(
+    schemas::CompiledSchemas,
+    resource::Resources.ResourceId,
+    pointer::Resources.JSONPointer = Resources.JSONPointer(),
+)
+    return select(schemas, Resources.NodeId(resource, pointer))
 end
 
 function CompiledSchema(
