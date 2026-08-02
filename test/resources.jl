@@ -108,7 +108,10 @@ end
         media_type = "application/schema+json",
     )
     registry = Resources.Registry()
+    @test isempty(registry)
     Resources.register!(registry, item; anchors = ["thing" => item_pointer])
+    @test length(registry) == 1
+    @test !isempty(Resources.freeze(registry))
 
     by_pointer = Resources.resolve(
         registry,

@@ -713,6 +713,9 @@ function Base.haskey(registry::AbstractRegistry, id::ResourceId)
     return haskey(getfield(registry, :resources), _canonical_id(registry, id))
 end
 
+Base.length(registry::AbstractRegistry) = length(getfield(registry, :resources))
+Base.isempty(registry::AbstractRegistry) = isempty(getfield(registry, :resources))
+
 struct ResolvedNode{T}
     id::NodeId
     value::T
