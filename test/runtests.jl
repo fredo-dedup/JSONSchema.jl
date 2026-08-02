@@ -12,7 +12,8 @@ import JSON3
 import OrderedCollections
 import ZipFile
 
-const TEST_SUITE_URL = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/23.1.0.zip"
+const TEST_SUITE_REVISION = "be54236db6e8e6bb2e098ed16fb4c61e73f5a9ac"
+const TEST_SUITE_URL = "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/$TEST_SUITE_REVISION.zip"
 
 const SCHEMA_TEST_DIR = let
     dest_dir = mktempdir()
@@ -26,12 +27,27 @@ const SCHEMA_TEST_DIR = let
             write(filename, read(f, String))
         end
     end
-    joinpath(dest_dir, "test-suite", "JSON-Schema-Test-Suite-23.1.0", "tests")
+    joinpath(
+        dest_dir,
+        "test-suite",
+        "JSON-Schema-Test-Suite-$TEST_SUITE_REVISION",
+        "tests",
+    )
 end
 
 const LOCAL_TEST_DIR = mktempdir(SCHEMA_TEST_DIR)
 
 include("resources.jl")
+include("compiled.jl")
+
+@testset "Compiled JSON3 interop" begin
+    schema = JSONSchema.CompiledSchema(JSON3.read("{\"type\":\"object\"}"))
+    @test isvalid(schema, JSON3.read("{}"))
+    @test !isvalid(schema, JSON3.read("[]"))
+    @test isempty(
+        JSONSchema.validate(schema, JSON3.read("{}"); fail_fast = false),
+    )
+end
 
 # Write test files for locally referenced schema files.
 #

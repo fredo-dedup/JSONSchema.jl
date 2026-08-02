@@ -105,6 +105,9 @@ function find_ref(
         return get_element(id_map[string(uri)], path[3:end])
     end
     uri = update_id(uri, path)
+    if haskey(id_map, string(uri))
+        return id_map[string(uri)]
+    end
     els = type_to_dict(uri)
     delete!.(Ref(els), [:uri, :fragment])
     uri2 = URIs.URI(; els...)

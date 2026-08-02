@@ -27,12 +27,26 @@ end
 function JSONSchema.validate(
     schema::JSONSchema.Schema,
     x::Union{JSON3.Object,JSON3.Array},
+    ;
+    kwargs...,
 )
-    return JSONSchema.validate(schema, _to_base_julia(x))
+    return JSONSchema.validate(schema, _to_base_julia(x); kwargs...)
 end
 
 function JSONSchema.Schema(schema::JSON3.Object; kwargs...)
     return JSONSchema.Schema(_to_base_julia(schema); kwargs...)
+end
+
+function JSONSchema.validate(
+    schema::JSONSchema.CompiledSchema,
+    x::Union{JSON3.Object,JSON3.Array};
+    kwargs...,
+)
+    return JSONSchema.validate(schema, _to_base_julia(x); kwargs...)
+end
+
+function JSONSchema.CompiledSchema(schema::JSON3.Object; kwargs...)
+    return JSONSchema.CompiledSchema(_to_base_julia(schema); kwargs...)
 end
 
 end

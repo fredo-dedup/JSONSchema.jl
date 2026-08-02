@@ -12,9 +12,12 @@ import URIs
 export Schema, validate
 
 include("resources.jl")
+include("dialects.jl")
 include("schema.jl")
+include("compiled.jl")
 include("generation.jl")
 include("validation.jl")
+include("compiled_validation.jl")
 
 export diagnose
 function diagnose(x, schema)

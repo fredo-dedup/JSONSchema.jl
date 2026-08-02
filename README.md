@@ -11,9 +11,11 @@ Given a [validation schema](http://json-schema.org/specification.html), this
 package can verify if a JSON instance meets all the assertions that define a
 valid document.
 
-This package has been tested with the
+This package runs the
 [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite)
-for draft v4, v6, and v7.
+for drafts 4, 6, 7, 2019-09, and 2020-12. The `Schema` API remains the stable
+compatibility API. The qualified `JSONSchema.CompiledSchema` API provides the
+dialect-aware resource model described below.
 
 ## API
 
@@ -124,3 +126,72 @@ references, or schema definitions.
 Generated schemas are returned as ordinary `Schema` objects; the underlying
 dictionary is available as `.data` or through `JSONSchema.spec(params)`, and
 `JSON.json(params)` serializes the generated schema.
+
+## Dialect-aware compilation
+
+Use `JSONSchema.CompiledSchema` when a schema uses modern dialects, external
+resources, anchors, dynamic references, or embedded schema resources. This API
+is not exported. The narrow export surface remains `Schema` and `validate`.
+
+```julia
+schema = JSONSchema.CompiledSchema(
+    Dict(
+        "\$schema" => JSONSchema.DRAFT202012.uri,
+        "type" => "array",
+        "items" => Dict("type" => "integer"),
+    ),
+)
+
+isvalid(schema, [1, 2, 3])
+```
+
+Compilation does not change the input value. It creates read-only resources,
+resolves every reachable reference, checks supported keyword shapes, and
+compiles regular expressions before validation. External retrieval is disabled
+by default. Supply an explicit retriever when references can leave the initial
+resource:
+
+```julia
+const Resources = JSONSchema.Resources
+
+retriever = Resources.MemoryRetriever(
+    Dict("https://example.com/integer" => "{\"type\":\"integer\"}"),
+)
+schema = JSONSchema.CompiledSchema(
+    Dict("\$ref" => "https://example.com/integer");
+    retriever,
+)
+```
+
+`Resources.FileRetriever` accepts one or more allowed roots and a byte limit.
+It rejects other URI schemes and paths outside those roots. Applications can
+define another `Resources.AbstractRetriever` and implement
+`Resources.retrieve` for a controlled retrieval policy.
+
+A schema can also start at a JSON Pointer inside a larger JSON resource. This
+keeps the surrounding resource available for references. If the pointer passes
+through JSON Schema container keywords such as `\$defs`, compilation applies
+the enclosing schema dialects and identifiers. Other surrounding document
+members remain opaque:
+
+```julia
+resource = Resources.Resource(
+    Resources.ResourceId("https://example.com/document.json"),
+    parsed_document,
+)
+schema = JSONSchema.CompiledSchema(
+    resource,
+    Resources.JSONPointer("/schemas/Widget");
+    dialect = JSONSchema.DRAFT202012,
+)
+```
+
+Compilation is bounded by `max_resources`, `max_nodes`, and `max_depth`.
+Validation is bounded by `max_evaluations`, `max_issues`, and `max_depth`.
+Reference cycles that do not make progress raise `JSONSchema.EvaluationError`
+instead of receiving an arbitrary validation result.
+
+The compiled validator treats `format` as an annotation. It rejects a custom
+dialect that requires the 2020-12 format-assertion vocabulary because this
+package does not implement that vocabulary. Validation issue paths from the
+compiled API use RFC 6901 JSON Pointer syntax.
