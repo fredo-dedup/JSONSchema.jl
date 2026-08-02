@@ -260,6 +260,7 @@ struct ResourceId
             _normalized_port(scheme, uri.port),
             path,
             _normalize_percent_encoding(uri.query),
+            _has_authority(uri),
         )
         return new(normalized, string(normalized))
     end
@@ -351,11 +352,33 @@ function _remove_dot_segments(path::AbstractString)
     return output
 end
 
-function _build_uri(scheme, userinfo, host, port, path, query)
-    if isempty(port)
-        return URIs.URI(; scheme, userinfo, host, path, query)
+function _has_authority(uri::URIs.URI)
+    lowercase(uri.scheme) in URIs.uses_authority && return true
+    (!isempty(uri.userinfo) || !isempty(uri.host) || !isempty(uri.port)) &&
+        return true
+    text = string(uri)
+    isempty(uri.scheme) && return startswith(text, "//")
+    separator = findfirst(==(':'), text)
+    separator === nothing && return false
+    return startswith(SubString(text, nextind(text, separator)), "//")
+end
+
+function _build_uri(scheme, userinfo, host, port, path, query, authority::Bool)
+    output = IOBuffer()
+    isempty(scheme) || print(output, scheme, ':')
+    if authority
+        print(output, "//")
+        isempty(userinfo) || print(output, userinfo, '@')
+        if occursin(':', host) && !startswith(host, '[')
+            print(output, '[', host, ']')
+        else
+            print(output, host)
+        end
+        isempty(port) || print(output, ':', port)
     end
-    return URIs.URI(; scheme, userinfo, host, port, path, query)
+    print(output, path)
+    isempty(query) || print(output, '?', query)
+    return URIs.URI(String(take!(output)))
 end
 
 function _normalized_port(scheme::AbstractString, port::AbstractString)
@@ -409,6 +432,7 @@ function _without_fragment(uri::URIs.URI)
         uri.port,
         uri.path,
         uri.query,
+        _has_authority(uri),
     )
 end
 

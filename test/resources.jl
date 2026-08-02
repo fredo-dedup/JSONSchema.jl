@@ -83,6 +83,17 @@ end
           Resources.ResourceId("https://example.com/")
     @test Resources.ResourceId("https://example.com/%2f") ==
           Resources.ResourceId("https://example.com/%2F")
+    @test string(Resources.ResourceId("urn:openapi:inline")) ==
+          "urn:openapi:inline"
+    @test string(Resources.ResourceId("MAILTO:user@example.com")) ==
+          "mailto:user@example.com"
+    @test string(Resources.ResourceId("custom://EXAMPLE.com/schema")) ==
+          "custom://example.com/schema"
+    @test string(Resources.ResourceId("https://[::1]:443/schema")) ==
+          "https://[::1]/schema"
+    @test Resources.ResourceId(
+        string(Resources.ResourceId("urn:test:a%2fb")),
+    ) == Resources.ResourceId("urn:test:a%2Fb")
 end
 
 @testset "Resource registry" begin
