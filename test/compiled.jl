@@ -399,6 +399,13 @@ end
     @test !isvalid(value, 1)
     @test isvalid(pointer, "ok")
     @test !isvalid(pointer, 1)
+    value_property = JSONSchema.subschema(
+        schemas,
+        Resources.ResourceId("https://example.com/result"),
+        Resources.JSONPointer("/properties/value"),
+    )
+    @test isvalid(value_property, "ok")
+    @test !isvalid(value_property, 1)
 
     roots_copy = schemas.roots
     empty!(roots_copy)
@@ -426,6 +433,47 @@ end
     count = JSONSchema.select(combined, external_id, external_pointer)
     @test isvalid(count, 1)
     @test !isvalid(count, "one")
+
+    dialect_document_id = Resources.ResourceId("https://example.org/mixed.json")
+    legacy_pointer = Resources.JSONPointer("/schemas/Legacy")
+    modern_pointer = Resources.JSONPointer("/schemas/Modern")
+    dialect_document = Resources.Resource(
+        dialect_document_id,
+        Dict(
+            "schemas" => Dict(
+                "Legacy" => Dict(
+                    "id" => "legacy",
+                    "type" => "number",
+                    "minimum" => 0,
+                    "exclusiveMinimum" => true,
+                ),
+                "Modern" => Dict(
+                    "\$id" => "modern",
+                    "type" => "number",
+                    "exclusiveMinimum" => 0,
+                ),
+            ),
+        ),
+    )
+    legacy_node = Resources.NodeId(dialect_document_id, legacy_pointer)
+    modern_node = Resources.NodeId(dialect_document_id, modern_pointer)
+    mixed = JSONSchema.CompiledSchemas(
+        [dialect_document],
+        [legacy_node, modern_node];
+        dialect = JSONSchema.DRAFT7,
+        root_dialects = Dict(
+            legacy_node => JSONSchema.DRAFT4,
+            modern_node => JSONSchema.DRAFT202012,
+        ),
+    )
+    legacy = JSONSchema.select(mixed, legacy_node)
+    modern = JSONSchema.select(mixed, modern_node)
+    @test legacy.dialect === JSONSchema.DRAFT4
+    @test modern.dialect === JSONSchema.DRAFT202012
+    @test !isvalid(legacy, 0)
+    @test isvalid(legacy, 1)
+    @test !isvalid(modern, 0)
+    @test isvalid(modern, 1)
 
     @test_throws ArgumentError JSONSchema.CompiledSchemas(
         Resources.Resource[],

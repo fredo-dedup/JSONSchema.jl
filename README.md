@@ -186,6 +186,35 @@ schema = JSONSchema.CompiledSchema(
 )
 ```
 
+Use `JSONSchema.CompiledSchemas` when one resource graph contains several
+independent schema roots. It scans every root before it resolves references.
+This permits one root to reference a sibling root by JSON Pointer, identifier,
+or anchor. `root_dialects` supports documents that embed roots from different
+JSON Schema dialects. `JSONSchema.select` returns a requested root.
+`JSONSchema.subschema` returns a compiled view of any schema location that the
+shared graph scanned.
+
+```julia
+roots = [
+    Resources.NodeId(resource.id, Resources.JSONPointer("/schemas/Legacy")),
+    Resources.NodeId(resource.id, Resources.JSONPointer("/schemas/Modern")),
+]
+schemas = JSONSchema.CompiledSchemas(
+    [resource],
+    roots;
+    root_dialects = Dict(
+        roots[1] => JSONSchema.DRAFT4,
+        roots[2] => JSONSchema.DRAFT202012,
+    ),
+)
+modern = JSONSchema.select(schemas, roots[2])
+property = JSONSchema.subschema(
+    schemas,
+    resource.id,
+    Resources.JSONPointer("/schemas/Modern/properties/value"),
+)
+```
+
 Compilation is bounded by `max_resources`, `max_nodes`, and `max_depth`.
 Validation is bounded by `max_evaluations`, `max_issues`, and `max_depth`.
 Reference cycles that do not make progress raise `JSONSchema.EvaluationError`

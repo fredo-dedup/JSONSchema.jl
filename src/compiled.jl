@@ -1227,18 +1227,32 @@ function _compiled_schema(compiler::Compiler, root::Resources.NodeId)
     )
 end
 
+function _root_dialect!(compiler::Compiler, value, fallback::Dialect)
+    value isa Dialect && return value
+    try
+        return dialect(value)
+    catch error
+        error isa UnsupportedDialectError || rethrow()
+        value isa AbstractString || rethrow()
+        return _custom_dialect!(compiler, value, fallback)
+    end
+end
+
 """
     CompiledSchemas(resources, roots; options...)
 
 Compile several JSON Schema roots embedded in one or more registered JSON
 resources. `roots` contains `Resources.NodeId` values. All roots are scanned
 before references are resolved, so a reference can target a sibling schema by
-its `\$id` or anchor without retrieving another document.
+its `\$id` or anchor without retrieving another document. `root_dialects` can
+map each requested or canonical root to a `Dialect`, registered dialect symbol,
+or dialect URI. Roots not in the map use `dialect`.
 """
 function CompiledSchemas(
     resources::AbstractVector{<:Resources.Resource},
     roots::AbstractVector{<:Resources.NodeId};
     dialect::Union{Dialect,Symbol,AbstractString} = DRAFT7,
+    root_dialects::AbstractDict = Dict{Resources.NodeId,Dialect}(),
     retriever::Resources.AbstractRetriever = Resources.DisabledRetriever(),
     max_resources::Integer = 256,
     max_nodes::Integer = 1_000_000,
@@ -1281,12 +1295,22 @@ function CompiledSchemas(
                 "the selected value is not an object or boolean schema",
             ),
         )
+        selected_dialect = get(
+            root_dialects,
+            requested,
+            get(root_dialects, raw, default_dialect),
+        )
+        schema_dialect = try
+            _root_dialect!(compiler, selected_dialect, default_dialect)
+        catch error
+            throw(CompilationError(raw, sprint(showerror, error)))
+        end
         root = _scan!(
             compiler,
             value,
             raw,
             _source_node(compiler.registry, raw),
-            default_dialect;
+            schema_dialect;
             resource_root = true,
         )
         compiled_roots[requested] = root
@@ -1333,7 +1357,7 @@ function select(schemas::CompiledSchemas, requested::Resources.NodeId)
         getfield(template, :evaluation_nodes),
         getfield(template, :transitions),
         template.uses_annotations,
-        template.recursive_anchors,
+        getfield(template, :recursive_anchors),
         getfield(template, :references),
         getfield(template, :regexes),
         template.retriever,
@@ -1346,6 +1370,42 @@ function select(
     pointer::Resources.JSONPointer = Resources.JSONPointer(),
 )
     return select(schemas, Resources.NodeId(resource, pointer))
+end
+
+"""Return a compiled view of any schema node scanned in a schema graph."""
+function subschema(schemas::CompiledSchemas, requested::Resources.NodeId)
+    template = getfield(schemas, :template)
+    canonical = Resources.canonical(template.registry, requested)
+    node = get(getfield(template, :evaluation_nodes), canonical, nothing)
+    node === nothing && throw(
+        ArgumentError("the requested node is not a compiled schema location"),
+    )
+    root = node.id
+    resource = Resources.resource(template.registry, root.resource)
+    data = Resources.resolve(resource.contents, root.pointer)
+    schema_dialect = get(getfield(template, :dialects), root, template.dialect)
+    return CompiledSchema(
+        data,
+        schema_dialect,
+        template.registry,
+        root,
+        getfield(template, :dialects),
+        getfield(template, :evaluation_nodes),
+        getfield(template, :transitions),
+        template.uses_annotations,
+        getfield(template, :recursive_anchors),
+        getfield(template, :references),
+        getfield(template, :regexes),
+        template.retriever,
+    )
+end
+
+function subschema(
+    schemas::CompiledSchemas,
+    resource::Resources.ResourceId,
+    pointer::Resources.JSONPointer = Resources.JSONPointer(),
+)
+    return subschema(schemas, Resources.NodeId(resource, pointer))
 end
 
 function CompiledSchema(
